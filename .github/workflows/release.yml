@@ -1,0 +1,96 @@
+# Publica uma nova versão do Upfly Code automaticamente.
+#
+# Quando o arquivo VERSION muda na branch main, este fluxo:
+#   1. baixa as ferramentas incluídas (rcedit) e compila a barra lateral (Go),
+#   2. roda os testes,
+#   3. gera os pacotes de Windows, macOS e Linux,
+#   4. cria a Release "vX.Y.Z" com os pacotes e as notas do CHANGELOG.md.
+# Os computadores com o Upfly Code instalado veem a Release e mostram o botão
+# "Atualizar agora".
+name: Publicar versão
+
+on:
+  push:
+    branches: [main]
+    paths: [VERSION]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ler versão
+        id: v
+        run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Verificar se a versão já foi publicada
+        id: exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v${{ steps.v.outputs.version }}" >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "A versão v${{ steps.v.outputs.version }} já existe; nada a fazer."
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Instalar dependências de teste
+        if: steps.exists.outputs.published == 'false'
+        run: sudo apt-get update -q && sudo apt-get install -y -q lua5.4 shellcheck zip
+
+      - name: Instalar Go
+        if: steps.exists.outputs.published == 'false'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: false
+
+      - name: Baixar ferramentas incluídas
+        if: steps.exists.outputs.published == 'false'
+        run: bash scripts/common/fetch-tools.sh
+
+      - name: Testes
+        if: steps.exists.outputs.published == 'false'
+        run: bash tests/run-tests.sh
+
+      - name: Gerar pacotes
+        if: steps.exists.outputs.published == 'false'
+        env:
+          UPFLY_UPDATE_REPO: ${{ github.repository }}
+        run: bash scripts/common/build-packages.sh
+
+      - name: Notas da versão
+        if: steps.exists.outputs.published == 'false'
+        run: |
+          V="${{ steps.v.outputs.version }}"
+          awk -v v="$V" '
+            $0 ~ "^## " v "( |$)" {on=1; next}
+            on && /^## / {exit}
+            on {print}
+          ' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "Upfly Code $V" > notes.md
+          cat notes.md
+
+      - name: Publicar Release
+        if: steps.exists.outputs.published == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.v.outputs.version }}"
+          # Cópias com nome fixo: o site baixa direto de
+          # releases/latest/download/UpflyCode-<sistema>.<ext>
+          cp installers/windows/UpflyCode-$V-windows.zip  UpflyCode-windows.zip
+          cp installers/macos/UpflyCode-$V-macos.zip      UpflyCode-macos.zip
+          cp installers/linux/UpflyCode-$V-linux.tar.gz   UpflyCode-linux.tar.gz
+          gh release create "v$V" \
+            installers/windows/UpflyCode-$V-windows.zip \
+            installers/macos/UpflyCode-$V-macos.zip \
+            installers/linux/UpflyCode-$V-linux.tar.gz \
+            UpflyCode-windows.zip UpflyCode-macos.zip UpflyCode-linux.tar.gz \
+            --title "Upfly Code $V" --notes-file notes.md --target "$GITHUB_SHA"
