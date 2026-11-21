@@ -1,0 +1,36 @@
+# Upfly Code - prompt opcional (Starship, https://starship.rs, licença ISC)
+# Só tem efeito se o Starship estiver instalado e ativado no seu shell.
+# Veja docs/problemas-comuns.md, seção "Prompt personalizado (opcional)".
+
+add_newline = true
+format = """
+[▲ upfly](bold #0080FF) $directory$git_branch$git_status$nodejs$python$rust$golang$cmd_duration
+$character"""
+
+[character]
+success_symbol = "[❯](bold #00D4FF)"
+error_symbol = "[❯](bold #FF5C5C)"
+
+[directory]
+style = "bold #C9D6EA"
+truncation_length = 4
+truncate_to_repo = true
+
+[git_branch]
+symbol = " "
+style = "#0080FF"
+format = "[$symbol$branch]($style) "
+
+[git_status]
+style = "#FFC857"
+
+[cmd_duration]
+min_time = 2000
+style = "#7A8BA8"
+format = "[⏱ $duration]($style) "
+
+[nodejs]
+format = "[ $version](#3C873A) "
+
+[python]
+format = "[ $version](#FFD43B) "
