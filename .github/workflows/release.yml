@@ -48,7 +48,7 @@ jobs:
         if: steps.exists.outputs.published == 'false'
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.25'
           cache: false
 
       - name: Baixar ferramentas incluídas
