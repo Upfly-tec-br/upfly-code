@@ -1,0 +1,6 @@
+# Downloads e pacotes gerados
+editor/.cache/
+dist/
+vendor/
+installers/*/
+*.vsix

@@ -1,30 +1,16 @@
-# Desinstalação
+# Desinstalar
 
-A desinstalação remove o Upfly Code: configuração, fundo, ícones, atalhos,
-barra lateral e, no Windows, o menu "Abrir no Upfly Code". O **Claude Code é
-mantido**.
+Use o desinstalador que vem no pacote (a mesma pasta do instalador):
 
-- **Windows:** toda a pasta `%LOCALAPPDATA%\UpflyCode` é apagada, incluindo o
-  motor portátil e o Git Bash portátil. Um Git for Windows instalado à parte não
-  é tocado.
-- **macOS/Linux:** o WezTerm instalado pelo sistema é mantido, a menos que você
-  use `--remove-wezterm`.
+- **Windows:** dois cliques em **Desinstalar Upfly Code**.
+- **macOS:** botão direito em **Desinstalar Upfly Code.command** > **Abrir**.
+- **Linux:** `./uninstall.sh`
 
-| Sistema | Remover Upfly Code | Remover também o WezTerm |
-|---|---|---|
-| Windows | **Desinstalar Upfly Code.cmd** (no pacote) ou `%LOCALAPPDATA%\UpflyCode\bin\uninstall.ps1` | (já incluído) |
-| macOS | **Desinstalar Upfly Code.command** ou `~/Library/Application Support/UpflyCode/bin/uninstall.sh` | `uninstall.sh --remove-wezterm` |
-| Linux | `./uninstall.sh` (no pacote) ou `~/.local/share/upfly-code/bin/uninstall.sh` | `uninstall.sh --remove-wezterm` |
+Suas configurações e conversas ficam guardadas, para o caso de instalar de novo.
+Para apagar tudo, use a opção `--tudo` (Mac e Linux) ou `-Tudo` (Windows):
 
-## Remover o Claude Code
+```
+./uninstall.sh --tudo
+```
 
-Siga a documentação oficial: https://code.claude.com/docs/en/setup
-
-Resumo para a instalação nativa:
-
-- macOS/Linux: `rm -f ~/.local/bin/claude && rm -rf ~/.local/share/claude`
-- Windows (PowerShell):
-  `Remove-Item "$env:USERPROFILE\.local\bin\claude.exe" -Force; Remove-Item "$env:USERPROFILE\.local\share\claude" -Recurse -Force`
-
-As configurações e o histórico do Claude Code ficam em `~/.claude`. Só apague
-essa pasta se quiser perder esses dados.
+No Windows, o Git Bash portátil instalado pelo Upfly Code também é removido com `-Tudo`.

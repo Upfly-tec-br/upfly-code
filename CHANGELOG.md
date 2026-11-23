@@ -1,5 +1,29 @@
 # Novidades do Upfly Code
 
+## 2.0.0
+
+O Upfly Code agora é um **editor com o chat do Claude ao lado**, parecido com o Trae.
+
+- **Chat do Claude de verdade:** a extensão oficial do Claude Code fica sempre à
+  direita, com balões de conversa, anexos e revisão das mudanças. Entra com a
+  sua conta Claude, sem chave de API.
+- **Arquivos à esquerda, terminal embaixo:** abriu uma pasta, já fica tudo no
+  lugar. Clique num arquivo para ver e editar.
+- **Página inicial simples:** botões grandes para abrir uma pasta, conversar com
+  o Claude ou abrir o terminal, mais as pastas recentes e os atalhos que mais ajudam.
+- **Tudo em português desde a primeira abertura**, com o tema e o logo da Upfly.
+- **Painel "O que você quer fazer?"** (ícone da Upfly na barra da esquerda) e
+  página **Atalhos** (`Ctrl+K Ctrl+H`). `F1` procura qualquer comando.
+- **Atualização com um clique:** o Upfly Code confere ao abrir e a cada hora.
+  Quando há versão nova, pergunta se você quer atualizar, fecha, se atualiza e
+  abre de novo sozinho.
+- **Instalação sem senha** nos três sistemas. No Windows, instala o Git Bash
+  portátil se o Git não estiver instalado (o Claude precisa dele).
+- Pacotes separados para Mac Intel (`UpflyCode-macos-intel.zip`) e Linux ARM
+  (`UpflyCode-linux-arm64.tar.gz`).
+- Quem tem a versão 1.x recebe esta atualização pelo botão de sempre. Depois
+  de atualizar, feche a janela antiga e abra o Upfly Code de novo.
+
 ## 1.4.0
 
 - **Tudo em português e fácil de usar:**

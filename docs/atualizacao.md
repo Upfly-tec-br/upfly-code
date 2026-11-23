@@ -1,58 +1,33 @@
 # Atualização
 
-São três coisas que se atualizam de forma independente.
+O Upfly Code confere se há versão nova:
+- uns segundos depois de abrir;
+- a cada hora, enquanto está aberto;
+- quando você volta para a janela depois de mais de uma hora longe.
 
-## 1. Upfly Code (automático)
+Quando há versão nova, aparece uma janela perguntando se você quer atualizar:
 
-O Upfly Code verifica sozinho se há versão nova no GitHub, ao abrir e a cada
-6 horas. Quando há:
+- **Atualizar agora:** o Upfly Code baixa a versão nova, fecha, se atualiza e
+  abre de novo sozinho, na mesma pasta. Leva menos de um minuto.
+- **O que mudou:** abre as novidades da versão.
+- **Depois:** fica um aviso amarelo na barra de baixo ("Atualizar para X").
+  Clique nele quando quiser.
 
-1. aparece o aviso **"Nova versão disponível"** com as opções **Atualizar
-   agora**, **Ver o que mudou** e **Lembrar depois**;
-2. a barra superior mostra um selo amarelo **⬆ Atualização X.Y.Z**.
+Para procurar na hora: ícone da **Upfly** na barra da esquerda >
+**Procurar atualização** (ou `F1` e escreva "atualização").
 
-Escolha **Atualizar agora**. No macOS e no Linux, a atualização roda numa aba e
-as mudanças valem na hora. No Windows, ela roda numa janela à parte. Se a versão
-nova trocar o motor ou o ícone, essa janela pede para você fechar o Upfly Code
-e termina sozinha.
+Suas configurações, pastas recentes e conversas com o Claude continuam depois
+da atualização.
 
-Para verificar a qualquer momento: `F1` → **Procurar atualização do Upfly Code**.
+## Vindo da versão 1.x (terminal)
 
-### Atualizar manualmente
+A versão 1.x mostra o aviso de atualização como antes. Depois de atualizar,
+feche a janela antiga e abra o **Upfly Code** de novo pelo menu: ele abre já
+como o editor novo.
 
-Se preferir, baixe o pacote novo na página **Releases** do GitHub:
+## Se a atualização falhar
 
-| Sistema | O que fazer |
-|---|---|
-| Windows | Extraia o pacote novo e dê dois cliques em **Atualizar Upfly Code.cmd** |
-| macOS | Extraia o pacote novo, botão direito em **Atualizar Upfly Code.command** → Abrir |
-| Linux | Extraia o pacote novo e rode `./update.sh` |
-
-A atualização também atualiza o WezTerm e o Claude Code. Ela não reinstala o
-WezTerm do zero e mantém os atalhos.
-
-A versão instalada fica no arquivo `VERSION` da pasta de instalação.
-
-## 2. Motor de terminal, Git Bash portátil e barra lateral
-
-- **Windows:** o motor e o Git Bash portáteis são atualizados junto com os
-  pacotes novos da Upfly. As versões ficam no topo do `install.ps1`.
-- **macOS (Homebrew):** o script de atualização roda `brew upgrade --cask wezterm`.
-- **Linux:** o script atualiza pelo gerenciador de pacotes (`apt`, `dnf`, `pacman`, `flatpak`).
-- **Barra lateral (upfly-files):** é compilada junto com os pacotes a partir de
-  `tools/upfly-files`. Atualiza sozinha a cada versão nova do Upfly Code.
-
-## 3. Claude Code
-
-Na instalação nativa, o Claude Code **se atualiza sozinho** em segundo plano.
-Para forçar uma atualização: `claude update`.
-
-## Para quem mantém o projeto: publicar uma versão
-
-1. Altere o que precisar (normalmente `config/wezterm.lua` → tabela `BRAND`).
-2. Aumente o número em `VERSION` (ex.: `1.0.0` → `1.1.0`).
-3. Rode `bash tests/run-tests.sh` e `bash scripts/common/build-packages.sh`.
-4. Distribua os arquivos de `installers/`.
-
-Dica: para testar uma mudança na hora, edite o `wezterm.lua` **instalado**. O
-terminal recarrega sozinho ao salvar.
+Baixe o pacote em https://upfly.tec.br e rode o instalador por cima. Nada se
+perde. O registro da última tentativa fica em:
+- Linux e Mac: `/tmp/upfly-code-update-<número>.log`
+- Windows: `%TEMP%\upfly-code-update.log`

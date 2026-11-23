@@ -1,0 +1,160 @@
+{
+  "name": "upfly",
+  "displayName": "Upfly Code",
+  "description": "Início simples, chat do Claude ao lado e atualizações do Upfly Code.",
+  "publisher": "upfly",
+  "version": "0.0.0",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.94.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
+  "upfly": {
+    "updateRepo": "Upfly-tec-br/upfly-code"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "upfly.home",
+        "title": "Página inicial",
+        "category": "Upfly"
+      },
+      {
+        "command": "upfly.openFolder",
+        "title": "Abrir uma pasta",
+        "category": "Upfly",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "upfly.findFile",
+        "title": "Procurar arquivo pelo nome",
+        "category": "Upfly",
+        "icon": "$(search)"
+      },
+      {
+        "command": "upfly.openClaude",
+        "title": "Conversar com o Claude",
+        "category": "Upfly",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "upfly.newTerminal",
+        "title": "Abrir terminal",
+        "category": "Upfly",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "upfly.shortcuts",
+        "title": "Ver atalhos",
+        "category": "Upfly",
+        "icon": "$(keyboard)"
+      },
+      {
+        "command": "upfly.checkUpdate",
+        "title": "Procurar atualização",
+        "category": "Upfly",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "upfly.setupClaude",
+        "title": "Instalar ou reparar o Claude",
+        "category": "Upfly"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "upfly.openFolder",
+        "key": "ctrl+o",
+        "mac": "cmd+o"
+      },
+      {
+        "command": "upfly.openClaude",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a"
+      },
+      {
+        "command": "upfly.shortcuts",
+        "key": "ctrl+k ctrl+h",
+        "mac": "cmd+k cmd+h"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "upfly",
+          "title": "Upfly",
+          "icon": "media/upfly.svg"
+        }
+      ]
+    },
+    "views": {
+      "upfly": [
+        {
+          "id": "upfly.actions",
+          "name": "O que você quer fazer?"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "upfly.openClaude",
+          "when": "view == workbench.explorer.fileView",
+          "group": "navigation@0"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "upfly.openClaude",
+          "group": "0_upfly@1"
+        }
+      ]
+    },
+    "themes": [
+      {
+        "label": "Upfly Escuro",
+        "uiTheme": "vs-dark",
+        "path": "./themes/upfly-dark.json"
+      }
+    ],
+    "configurationDefaults": {
+      "workbench.colorTheme": "Upfly Escuro",
+      "workbench.startupEditor": "none",
+      "workbench.tips.enabled": false,
+      "workbench.welcomePage.walkthroughs.openOnInstall": false,
+      "workbench.secondarySideBar.defaultVisibility": "visible",
+      "workbench.layoutControl.enabled": true,
+      "workbench.editor.empty.hint": "hidden",
+      "chat.disableAIFeatures": true,
+      "chat.commandCenter.enabled": false,
+      "update.mode": "none",
+      "extensions.ignoreRecommendations": true,
+      "security.workspace.trust.enabled": false,
+      "telemetry.telemetryLevel": "off",
+      "files.autoSave": "afterDelay",
+      "editor.fontSize": 15,
+      "editor.minimap.enabled": false,
+      "editor.wordWrap": "on",
+      "terminal.integrated.fontSize": 14,
+      "explorer.confirmDragAndDrop": false,
+      "git.openRepositoryInParentFolders": "always",
+      "claudeCode.preferredLocation": "sidebar",
+      "window.title": "${rootName}${separator}Upfly Code",
+      "window.commandCenter": true,
+      "terminal.integrated.enablePersistentSessions": false,
+      "terminal.integrated.persistentSessionReviveProcess": "never"
+    }
+  }
+}

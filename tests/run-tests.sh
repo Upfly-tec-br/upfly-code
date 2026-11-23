@@ -1,155 +1,156 @@
 #!/usr/bin/env bash
-# Upfly Code - validações automáticas.
-# Requisitos: bash, lua (5.3+), opcional: shellcheck, pwsh
+# Testes do Upfly Code (editor com chat do Claude).
+#   bash tests/run-tests.sh            checagens rápidas + pacote Linux + instalação simulada
+#   UPFLY_QUICK=1 bash tests/run-tests.sh   só as checagens rápidas
+# A instalação simulada precisa rodar como usuário comum (não root).
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FAIL=0
-section() { printf '\n\033[36m## %s\033[0m\n' "$*"; }
-pass() { printf '  ok   %s\n' "$*"; }
-fail() { printf '  \033[31mFALHA\033[0m %s\n' "$*"; FAIL=$((FAIL + 1)); }
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO"
+FAILS=0
+TOUT="$(mktemp)"; UNIT="$(mktemp --suffix=.js 2>/dev/null || mktemp)"
+trap 'rm -f "$TOUT" "$UNIT"' EXIT
+ok()   { printf '  \033[32mok\033[0m   %s\n' "$*"; }
+bad()  { printf '  \033[31mFALHA\033[0m %s\n' "$*"; FAILS=$((FAILS+1)); }
+skip() { printf '  \033[33m--\033[0m   %s\n' "$*"; }
+sec()  { printf '\n\033[36m## %s\033[0m\n' "$*"; }
+check() { local name="$1"; shift; if "$@" >"$TOUT" 2>&1; then ok "$name"; else bad "$name"; sed 's/^/       /' "$TOUT" | head -15; fi; }
 
-LUA="$(command -v lua5.4 || command -v lua5.3 || command -v lua || true)"
-
-section "Arquivos obrigatórios"
-for f in VERSION README.md LICENSES/THIRD-PARTY-NOTICES.md config/wezterm.lua \
-         config/starship.toml config/update-repo.txt config/shell/self-update.sh config/shell/self-update.ps1 config/shell/upfly-shell.sh config/shell/upfly-shell.ps1 \
-         branding/logo.png branding/symbol.png branding/icon.ico branding/icon.icns \
-         branding/icon.png branding/icon-256.png branding/icon-512.png branding/background.jpg \
-         scripts/windows/install.ps1 scripts/windows/uninstall.ps1 scripts/windows/update.ps1 \
-         scripts/windows/create-shortcut.ps1 scripts/macos/install.sh scripts/macos/uninstall.sh \
-         scripts/macos/update.sh scripts/linux/install.sh scripts/linux/uninstall.sh scripts/linux/update.sh \
-         docs/instalacao-windows.md docs/instalacao-macos.md docs/instalacao-linux.md \
-         docs/atualizacao.md docs/desinstalacao.md docs/problemas-comuns.md \
-         vendor/windows/rcedit-x64.exe tools/upfly-files/main.go tools/upfly-files/go.mod \
-         tools/windows/upfly-taskbar.cs LICENSES/upfly-files-THIRD-PARTY.txt; do
-  [ -s "$ROOT/$f" ] && pass "$f" || fail "$f ausente"
+# ---------------------------------------------------------------------------
+sec "Arquivos"
+for f in VERSION CHANGELOG.md README.md editor/VSCODIUM_VERSION \
+         editor/extension/package.json editor/extension/extension.js \
+         editor/extension/themes/upfly-dark.json editor/extension/bin/self-update.sh editor/extension/bin/self-update.ps1 \
+         editor/scripts/rebrand.py editor/scripts/languagepacks.js editor/scripts/make-vsix.py \
+         editor/scripts/build-linux.sh editor/scripts/build-windows.sh editor/scripts/build-macos.sh editor/scripts/fetch-deps.sh \
+         editor/linux/install.sh editor/windows/install.ps1 editor/macos/install.sh \
+         branding/icon.ico branding/icon.icns branding/icon-256.png branding/icon-512.png branding/logo-inverted.png; do
+  [ -f "$f" ] && ok "$f" || bad "$f ausente"
 done
-grep -q "Copyright (c) 2018-Present Wez Furlong" "$ROOT/LICENSES/THIRD-PARTY-NOTICES.md" \
-  && pass "aviso de copyright do WezTerm presente" || fail "aviso de copyright do WezTerm ausente"
 
-section "Configuração Lua"
-if [ -n "$LUA" ]; then
-  if (cd "$ROOT" && "$LUA" tests/config_test.lua "$ROOT"); then pass "config_test.lua"; else fail "config_test.lua"; fi
-else
-  echo "  (lua não instalado - teste pulado)"
-fi
-
-section "Scripts shell"
-for f in "$ROOT"/scripts/*/*.sh "$ROOT"/config/shell/*.sh "$ROOT"/tests/*.sh; do
-  bash -n "$f" && pass "sintaxe $(basename "$(dirname "$f")")/$(basename "$f")" || fail "sintaxe $f"
+sec "Sintaxe"
+check "extension.js" node --check editor/extension/extension.js
+check "languagepacks.js" node --check editor/scripts/languagepacks.js
+for j in editor/extension/package.json editor/extension/themes/*.json; do
+  check "$j é JSON válido" node -e "JSON.parse(require('fs').readFileSync('$j','utf8'))"
+done
+check "rebrand.py / make-vsix.py" python3 -m py_compile editor/scripts/rebrand.py editor/scripts/make-vsix.py
+for s in editor/linux/*.sh editor/macos/*.sh editor/scripts/*.sh editor/extension/bin/*.sh; do
+  check "bash -n $s" bash -n "$s"
 done
 if command -v shellcheck >/dev/null 2>&1; then
-  if shellcheck -S warning "$ROOT"/scripts/*/*.sh "$ROOT"/config/shell/*.sh; then
-    pass "shellcheck sem avisos"
-  else
-    fail "shellcheck"
-  fi
-fi
-
-section "Scripts PowerShell"
-for f in "$ROOT"/scripts/windows/*.ps1 "$ROOT"/config/shell/*.ps1; do
-  head -c3 "$f" | od -An -tx1 | grep -q "ef bb bf" && pass "UTF-8 com BOM: $(basename "$f")" \
-    || fail "$(basename "$f") sem BOM (acentos quebram no Windows PowerShell 5.1)"
+  check "shellcheck" shellcheck -S error editor/linux/*.sh editor/macos/*.sh editor/scripts/*.sh editor/extension/bin/*.sh
+else skip "shellcheck não instalado"; fi
+for p in editor/windows/*.ps1 editor/extension/bin/*.ps1; do
+  if head -c3 "$p" | od -An -tx1 | grep -q 'ef bb bf'; then ok "$p tem BOM (acentos no PowerShell 5)"; else bad "$p sem BOM"; fi
 done
 if command -v pwsh >/dev/null 2>&1; then
-  for f in "$ROOT"/scripts/windows/*.ps1 "$ROOT"/config/shell/upfly-shell.ps1; do
-    out=$(pwsh -NoProfile -Command "\$e=\$null; [void][System.Management.Automation.Language.Parser]::ParseFile('$f',[ref]\$null,[ref]\$e); if(\$e){\$e|%{\$_.ToString()}; exit 1}" 2>&1) \
-      && pass "parse $(basename "$f")" || fail "parse $(basename "$f"): $out"
+  for p in editor/windows/*.ps1 editor/extension/bin/*.ps1; do
+    check "PowerShell lê $p" pwsh -NoProfile -Command "\$e=\$null; [void][System.Management.Automation.Language.Parser]::ParseFile('$p',[ref]\$null,[ref]\$e); if (\$e) { \$e; exit 1 }"
   done
-else
-  echo "  (pwsh não instalado - análise sintática pulada)"
-fi
+else skip "pwsh não instalado (checado no Windows do GitHub Actions)"; fi
 
-section "Barra lateral de arquivos (Go)"
-if command -v go >/dev/null 2>&1; then
-  GOARGS=()
-  GOENV=(GOFLAGS=-mod=mod)
-  if [ "${UPFLY_GO_MIRRORS:-}" = "1" ]; then
-    GOARGS=(-modfile=go.mirror.mod); GOENV+=(GOPROXY=direct GOSUMDB=off)
-  fi
-  if (cd "$ROOT/tools/upfly-files" && env "${GOENV[@]}" go vet "${GOARGS[@]}" ./... && env "${GOENV[@]}" go test "${GOARGS[@]}" ./...) >/tmp/upfly-go-test.log 2>&1; then
-    pass "go vet + go test"
-  else
-    fail "Go: $(tail -15 /tmp/upfly-go-test.log)"
-  fi
-  for t in windows/amd64 darwin/arm64 darwin/amd64 linux/amd64 linux/arm64; do
-    if (cd "$ROOT/tools/upfly-files" && env "${GOENV[@]}" CGO_ENABLED=0 GOOS="${t%/*}" GOARCH="${t#*/}" \
-        go build "${GOARGS[@]}" -o /dev/null .) >/tmp/upfly-go-build.log 2>&1; then
-      pass "compila para $t"
-    else
-      fail "compilação $t: $(tail -5 /tmp/upfly-go-build.log)"
-    fi
-  done
-else
-  echo "  (Go não instalado - testes da barra lateral pulados)"
-fi
+sec "Extensão Upfly"
+check "textos em português e atalhos" node -e "
+const p=require('./editor/extension/package.json');
+const t=p.contributes.commands.map(c=>c.title).join(' ');
+if(/wezterm/i.test(JSON.stringify(p))) throw 'fala em wezterm';
+for (const w of ['Conversar com o Claude','Abrir uma pasta','Procurar atualização']) if(!t.includes(w)) throw 'falta '+w;
+const kb=p.contributes.keybindings.map(k=>k.key);
+for (const k of ['ctrl+shift+a','ctrl+o']) if(!kb.includes(k)) throw 'falta atalho '+k;
+const d=p.contributes.configurationDefaults;
+if(d['claudeCode.preferredLocation']!=='sidebar') throw 'Claude não fica à direita';
+if(d['workbench.colorTheme']!=='Upfly Escuro') throw 'tema';
+if(!p.capabilities.untrustedWorkspaces.supported) throw 'desliga em modo restrito';
+"
+cat > "$UNIT" <<'EOF'
+const Module = require('module');
+const fs = require('fs'), os = require('os'), path = require('path');
+const orig = Module._load;
+Module._load = function (req, ...a) { return req === 'vscode' ? { env: { appRoot: '/nao/existe' } } : orig.call(this, req, ...a); };
+const { _test } = require(process.argv[2]);
+const assert = require('assert');
+assert(_test.isNewer('2.0.1', '2.0.0'));
+assert(_test.isNewer('v2.1.0', '2.0.9'));
+assert(_test.isNewer('2.0.10', '2.0.9'));
+assert(!_test.isNewer('2.0.0', '2.0.0'));
+assert(!_test.isNewer('1.4.0', '2.0.0'));
+const home = fs.mkdtempSync(path.join(os.tmpdir(), 'upfly-home-'));
+os.homedir = () => home;
+fs.mkdirSync(path.join(home, '.upfly-code'));
+const argv = path.join(home, '.upfly-code', 'argv.json');
+fs.writeFileSync(argv, '// comentário\n{\n\t"enable-crash-reporter": false\n}\n');
+_test.setLocaleInArgv('pt-br');
+let t = fs.readFileSync(argv, 'utf8');
+assert(/"enable-crash-reporter": false,\s*\n\t"locale": "pt-br"/.test(t), t);
+_test.setLocaleInArgv('en');
+t = fs.readFileSync(argv, 'utf8');
+assert(t.includes('"locale": "en"') && !t.includes('pt-br'), t);
+console.log('ok');
+EOF
+check "comparação de versões e idioma no argv.json" node "$UNIT" "$REPO/editor/extension/extension.js"
 
-section "Instalação simulada (Linux)"
-TMPHOME="$(mktemp -d)"
-FAKEBIN="$TMPHOME/fakebin"
-mkdir -p "$FAKEBIN"
-printf '#!/bin/sh\necho "wezterm $*"\n' > "$FAKEBIN/wezterm"; chmod +x "$FAKEBIN/wezterm"
-if UPFLY_SKIP_TOOL_INIT=1 HOME="$TMPHOME" XDG_DATA_HOME="" PATH="$FAKEBIN:$PATH" bash "$ROOT/scripts/linux/install.sh" --no-claude --no-launch >"$TMPHOME/out" 2>&1; then
-  pass "install.sh concluiu"
-  if grep -qi "wezterm" "$TMPHOME/out"; then fail "a tela do instalador menciona WezTerm"; else pass "tela do instalador só fala em Upfly Code"; fi
-  for f in .local/share/upfly-code/config/wezterm.lua .local/share/upfly-code/branding/background.jpg \
-           .local/share/upfly-code/bin/upfly-shell.sh .local/bin/upfly-code \
-           .local/share/applications/UpflyCode.desktop .local/share/icons/hicolor/512x512/apps/upfly-code.png \
-           .local/share/upfly-code/config/update-repo.txt .local/share/upfly-code/state; do
-    [ -e "$TMPHOME/$f" ] && pass "criado ~/$f" || fail "não criado ~/$f"
-  done
-  grep -q '^StartupWMClass=UpflyCode$' "$TMPHOME/.local/share/applications/UpflyCode.desktop" \
-    && pass "atalho ligado à janela (UpflyCode)" || fail "atalho sem StartupWMClass=UpflyCode"
-  if grep -q '^NoDisplay=true$' "$TMPHOME/.local/share/applications/org.wezfurlong.wezterm.desktop" 2>/dev/null; then
-    pass "só um aplicativo no menu (motor escondido)"
-  else
-    fail "o atalho do motor continua aparecendo no menu"
-  fi
-  out="$(HOME="$TMPHOME" PATH="$FAKEBIN:$PATH" "$TMPHOME/.local/bin/upfly-code")"
-  case "$out" in
-    *"--config-file $TMPHOME/.local/share/upfly-code/config/wezterm.lua start --always-new-process --class UpflyCode --cwd $TMPHOME"*)
-      pass "upfly-code chama o WezTerm com a configuração Upfly" ;;
-    *) fail "upfly-code: $out" ;;
-  esac
-  out2="$(HOME="$TMPHOME" PATH="$FAKEBIN:$PATH" "$TMPHOME/.local/bin/upfly-code" "$ROOT/docs")"
-  case "$out2" in *"--cwd $ROOT/docs"*) pass "upfly-code <pasta> abre na pasta" ;; *) fail "upfly-code <pasta>: $out2" ;; esac
-  banner="$(cd "$TMPHOME" && HOME="$TMPHOME" SHELL=/bin/true TERM=xterm COLUMNS=120 \
-    sh "$TMPHOME/.local/share/upfly-code/bin/upfly-shell.sh" 2>&1)"
-  case "$banner" in
-    *"Upfly Code"*"Claude"*) pass "boas-vindas exibidas" ;;
-    *) fail "boas-vindas: $banner" ;;
-  esac
-  [ "$(printf '%s\n' "$banner" | grep -c .)" -le 1 ] && pass "boas-vindas ocupam só 1 linha" || fail "boas-vindas grandes demais"
-  # Autoatualização: release falsa 9.9.9 servida por file://
-  FAKE="$TMPHOME/fake-release"; PKG="$FAKE/UpflyCode-9.9.9"
-  mkdir -p "$PKG/scripts" "$PKG/vendor" "$FAKE/api/repos/upfly/upfly-code/releases"
-  cp -R "$ROOT/config" "$ROOT/branding" "$ROOT/LICENSES" "$PKG/"
-  cp -R "$ROOT/scripts/linux" "$PKG/scripts/"
-  echo 9.9.9 > "$PKG/VERSION"
-  tar -C "$FAKE" -czf "$FAKE/UpflyCode-9.9.9-linux.tar.gz" UpflyCode-9.9.9
-  printf '{"tag_name": "v9.9.9", "assets": [{"browser_download_url": "file://%s"}]}' \
-    "$FAKE/UpflyCode-9.9.9-linux.tar.gz" > "$FAKE/api/repos/upfly/upfly-code/releases/latest"
-  echo "upfly/upfly-code" > "$TMPHOME/.local/share/upfly-code/config/update-repo.txt"
-  upd="$(UPFLY_SKIP_TOOL_INIT=1 UPFLY_UPDATE_API="file://$FAKE/api" HOME="$TMPHOME" XDG_DATA_HOME="" PATH="$FAKEBIN:$PATH" \
-    bash "$TMPHOME/.local/share/upfly-code/bin/self-update.sh" </dev/null 2>&1)"
-  if [ "$(cat "$TMPHOME/.local/share/upfly-code/VERSION")" = "9.9.9" ]; then
-    pass "autoatualização baixa a release e instala a versão nova"
-  else
-    fail "autoatualização: $(printf '%s' "$upd" | sed 's/\x1b\[[0-9;]*m//g' | tail -5)"
-  fi
-  if HOME="$TMPHOME" XDG_DATA_HOME="" bash "$TMPHOME/.local/share/upfly-code/bin/uninstall.sh" >/dev/null 2>&1 \
-     && [ ! -e "$TMPHOME/.local/share/upfly-code" ] && [ ! -e "$TMPHOME/.local/bin/upfly-code" ] \
-     && [ ! -e "$TMPHOME/.local/share/applications/org.wezfurlong.wezterm.desktop" ]; then
-    pass "uninstall.sh removeu tudo"
-  else
-    fail "uninstall.sh"
-  fi
+[ -n "${UPFLY_QUICK:-}" ] && { echo; [ "$FAILS" = 0 ] && printf '\033[32mTodos os testes passaram.\033[0m\n' || printf '\033[31m%s falha(s)\033[0m\n' "$FAILS"; exit "$FAILS"; }
+
+# ---------------------------------------------------------------------------
+sec "Pacote Linux"
+if [ "$(id -u)" = 0 ]; then
+  skip "rodando como root: pacote e instalação simulada pulados (rode como usuário comum)"
 else
-  fail "install.sh: $(tail -5 "$TMPHOME/out")"
+  V="$(tr -d '[:space:]' < VERSION)"
+  OUT="$(mktemp -d)"
+  TARBALL="${UPFLY_VSCODIUM_TARBALL:-}"
+  PT="${UPFLY_PTBR_VSIX:-}"
+  if [ -z "$TARBALL" ]; then
+    mapfile -t DEPS < <(bash editor/scripts/fetch-deps.sh linux-x64 | tail -2)
+    TARBALL="${DEPS[0]}"; PT="${DEPS[1]}"
+  fi
+  check "build-linux.sh" bash editor/scripts/build-linux.sh "$TARBALL" "$V" "$OUT" $PT
+  P="$OUT/UpflyCode-$V"
+  PROD="$P/app/resources/app/product.json"
+  check "product.json com a marca Upfly" node -e "
+    const p=require('$PROD');
+    if(p.nameShort!=='Upfly Code'||p.applicationName!=='upfly-code'||p.dataFolderName!=='.upfly-code') throw JSON.stringify(p.nameShort);
+    if(p.updateUrl) throw 'atualizador do VSCodium ativo';
+    if(!p.defaultChatAgent) throw 'sem defaultChatAgent a janela não desenha';"
+  check "extensão Upfly embutida com a versão $V" node -e "
+    const p=require('$P/app/resources/app/extensions/upfly/package.json'); if(p.version!=='$V') throw p.version;"
+  check "executável renomeado" test -x "$P/app/upfly-code" -a -x "$P/app/bin/upfly-code" -a ! -e "$P/app/codium"
+  check "ícone da barra de título trocado" grep -q 'data:image/png;base64' "$P/app/resources/app/out/media/code-icon.svg"
+
+  sec "Instalação simulada (Linux)"
+  H="$(mktemp -d)"
+  export HOME="$H" XDG_DATA_HOME="$H/.local/share" XDG_CONFIG_HOME="$H/.config"
+  check "install.sh concluiu" bash "$P/install.sh" --no-launch --no-extensions
+  check "aplicativo instalado" test -x "$H/.local/share/upfly-code/app/upfly-code"
+  check "comando upfly-code" test -x "$H/.local/bin/upfly-code"
+  check "atalho no menu ligado à janela (UpflyCode)" grep -q '^StartupWMClass=UpflyCode$' "$H/.local/share/applications/UpflyCode.desktop"
+  check "ícone instalado" test -f "$H/.local/share/icons/hicolor/512x512/apps/upfly-code.png"
+  check "abre em português (argv.json)" grep -q '"locale": "pt-br"' "$H/.upfly-code/argv.json"
+  check "sem aviso de pasta confiável" grep -q '"security.workspace.trust.enabled": false' "$H/.config/Upfly Code/User/settings.json"
+  if [ -n "$PT" ]; then
+    check "português instalado sem internet" bash -c "ls -d '$H'/.upfly-code/extensions/ms-ceintl.vscode-language-pack-pt-br-*"
+    check "índice de idiomas pronto antes de abrir" grep -q '"pt-br"' "$H/.config/Upfly Code/languagepacks.json"
+  fi
+  check "CLI responde a versão" bash -c "'$H/.local/share/upfly-code/app/bin/upfly-code' --version | head -1 | grep -q '\\.'"
+
+  sec "Atualização automática (Linux)"
+  V2="99.0.0"
+  check "pacote de teste $V2" bash editor/scripts/build-linux.sh "$TARBALL" "$V2" "$OUT"
+  PORT=$((20000 + RANDOM % 20000))
+  ( cd "$OUT" && exec python3 -m http.server "$PORT" --bind 127.0.0.1 ) >/dev/null 2>&1 &
+  SRV=$!
+  sleep 1
+  check "self-update.sh prepara a troca" bash "$H/.local/share/upfly-code/app/resources/app/extensions/upfly/bin/self-update.sh" \
+    "http://127.0.0.1:$PORT/UpflyCode-$V2-linux-x64.tar.gz" "$V2" "/x" </dev/null
+  for _ in $(seq 1 120); do [ "$(cat "$H/.local/share/upfly-code/VERSION" 2>/dev/null)" = "$V2" ] && break; sleep 1; done
+  check "versão nova instalada sozinha" grep -qx "$V2" "$H/.local/share/upfly-code/VERSION"
+  kill "$SRV" 2>/dev/null
+
+  check "uninstall.sh removeu tudo" bash -c "bash '$P/uninstall.sh' && test ! -e '$H/.local/share/upfly-code' && test ! -e '$H/.local/bin/upfly-code'"
+  rm -rf "$OUT" "$H"
 fi
-rm -rf "$TMPHOME"
 
 echo
-if [ "$FAIL" -gt 0 ]; then printf '\033[31m%d falha(s)\033[0m\n' "$FAIL"; exit 1; fi
-printf '\033[32mTodos os testes passaram.\033[0m\n'
+if [ "$FAILS" = 0 ]; then printf '\033[32mTodos os testes passaram.\033[0m\n'; else printf '\033[31m%s falha(s)\033[0m\n' "$FAILS"; fi
+exit "$FAILS"

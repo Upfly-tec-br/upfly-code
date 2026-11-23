@@ -1,74 +1,171 @@
-# Publica uma nova versão do Upfly Code automaticamente.
+# Testa, empacota e publica o Upfly Code (editor com o chat do Claude).
 #
-# Quando o arquivo VERSION muda na branch main, este fluxo:
-#   1. baixa as ferramentas incluídas (rcedit) e compila a barra lateral (Go),
-#   2. roda os testes,
-#   3. gera os pacotes de Windows, macOS e Linux,
-#   4. cria a Release "vX.Y.Z" com os pacotes e as notas do CHANGELOG.md.
-# Os computadores com o Upfly Code instalado veem a Release e mostram o botão
-# "Atualizar agora".
+# - Em qualquer push para a branch "editor" (ou rodando à mão): testa e gera
+#   os pacotes dos 3 sistemas como "artifacts", para baixar e experimentar.
+# - Quando o arquivo VERSION muda na main: faz o mesmo e cria a Release
+#   "vX.Y.Z". Os computadores com o Upfly Code instalado veem a Release e
+#   perguntam se a pessoa quer atualizar.
+#
+# Arquivos com nome fixo (o site baixa de releases/latest/download/...):
+#   UpflyCode-windows.zip, UpflyCode-macos.zip (Apple Silicon),
+#   UpflyCode-macos-intel.zip, UpflyCode-linux.tar.gz, UpflyCode-linux-arm64.tar.gz
 name: Publicar versão
 
 on:
   push:
-    branches: [main]
-    paths: [VERSION]
+    branches: [main, editor]
+    paths: [VERSION, 'editor/**', 'tests/**', 'branding/**', '.github/workflows/**']
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  versao:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      publish: ${{ steps.v.outputs.publish }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Ler versão
-        id: v
-        run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
-
-      - name: Verificar se a versão já foi publicada
-        id: exists
+      - uses: actions/checkout@v5
+      - id: v
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "v${{ steps.v.outputs.version }}" >/dev/null 2>&1; then
-            echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "A versão v${{ steps.v.outputs.version }} já existe; nada a fazer."
+          V="$(tr -d '[:space:]' < VERSION)"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"; echo "Fora da main: só testa e empacota."
+          elif gh release view "v$V" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"; echo "A versão v$V já existe: só testa e empacota."
           else
-            echo "published=false" >> "$GITHUB_OUTPUT"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Instalar dependências de teste
-        if: steps.exists.outputs.published == 'false'
-        run: sudo apt-get update -q && sudo apt-get install -y -q lua5.4 shellcheck zip
-
-      - name: Instalar Go
-        if: steps.exists.outputs.published == 'false'
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-          cache: false
-
-      - name: Baixar ferramentas incluídas
-        if: steps.exists.outputs.published == 'false'
-        run: bash scripts/common/fetch-tools.sh
-
-      - name: Testes
-        if: steps.exists.outputs.published == 'false'
-        run: bash tests/run-tests.sh
-
-      - name: Gerar pacotes
-        if: steps.exists.outputs.published == 'false'
-        env:
-          UPFLY_UPDATE_REPO: ${{ github.repository }}
-        run: bash scripts/common/build-packages.sh
-
-      - name: Notas da versão
-        if: steps.exists.outputs.published == 'false'
+  linux:
+    needs: versao
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: sudo apt-get update -q && sudo apt-get install -y -q shellcheck
+      - name: Baixar VSCodium e português
         run: |
-          V="${{ steps.v.outputs.version }}"
+          bash editor/scripts/fetch-deps.sh linux-x64
+          bash editor/scripts/fetch-deps.sh linux-arm64
+      - name: Testes
+        env:
+          UPFLY_PTBR_VSIX: editor/.cache/pt-br.vsix
+        run: |
+          export UPFLY_VSCODIUM_TARBALL="$(ls editor/.cache/VSCodium-linux-x64-*.tar.gz)"
+          bash tests/run-tests.sh
+      - name: Gerar pacotes
+        run: |
+          V="${{ needs.versao.outputs.version }}"
+          mkdir -p dist
+          bash editor/scripts/build-linux.sh editor/.cache/VSCodium-linux-x64-*.tar.gz   "$V" dist editor/.cache/pt-br.vsix
+          bash editor/scripts/build-linux.sh editor/.cache/VSCodium-linux-arm64-*.tar.gz "$V" dist editor/.cache/pt-br.vsix
+      - uses: actions/upload-artifact@v5
+        with:
+          name: UpflyCode-linux
+          path: dist/*.tar.gz
+          retention-days: 14
+
+  windows:
+    needs: versao
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - name: Conferir os scripts do PowerShell
+        shell: pwsh
+        run: |
+          $bad = 0
+          foreach ($f in Get-ChildItem editor -Recurse -Filter *.ps1) {
+            $e = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$e)
+            if ($e) { Write-Host "ERRO em $($f.FullName)"; $e | ForEach-Object { Write-Host "  $_" }; $bad++ }
+            else { Write-Host "ok  $($f.Name)" }
+          }
+          if ($bad) { exit 1 }
+      - name: Baixar VSCodium, português e rcedit
+        run: |
+          bash editor/scripts/fetch-deps.sh win32-x64
+          curl -fL --retry 3 -o editor/.cache/rcedit-x64.exe https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe
+      - name: Gerar pacote
+        run: |
+          V="${{ needs.versao.outputs.version }}"
+          mkdir -p dist
+          bash editor/scripts/build-windows.sh editor/.cache/VSCodium-win32-x64-*.zip "$V" "$PWD/dist" "$PWD/editor/.cache/rcedit-x64.exe" editor/.cache/pt-br.vsix
+      - name: Instalação de teste
+        shell: pwsh
+        run: |
+          $v = (Get-Content VERSION -Raw).Trim()
+          Expand-Archive "dist/UpflyCode-$v-windows.zip" -DestinationPath "$env:RUNNER_TEMP\pkg"
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:RUNNER_TEMP\pkg\UpflyCode-$v\scripts\windows\install.ps1" -NoLaunch -NoExtensions -SkipGit
+          if ($LASTEXITCODE) { exit 1 }
+          $exe = Join-Path $env:LOCALAPPDATA 'UpflyCode\app\UpflyCode.exe'
+          if (-not (Test-Path $exe)) { throw 'UpflyCode.exe não instalado' }
+          $info = (Get-Item $exe).VersionInfo
+          Write-Host "ProductName: $($info.ProductName)"
+          if ($info.ProductName -ne 'Upfly Code') { throw 'nome do .exe não foi trocado' }
+          if (-not (Test-Path (Join-Path ([Environment]::GetFolderPath('Programs')) 'Upfly Code.lnk'))) { throw 'sem atalho no Menu Iniciar' }
+          if (-not (Select-String -Path (Join-Path $env:APPDATA 'Upfly Code\languagepacks.json') -Pattern 'pt-br' -Quiet)) { throw 'português não ficou pronto' }
+          & (Join-Path $env:LOCALAPPDATA 'UpflyCode\app\bin\upfly-code.cmd') --version
+          if ($LASTEXITCODE) { throw 'CLI não respondeu' }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:RUNNER_TEMP\pkg\UpflyCode-$v\scripts\windows\uninstall.ps1"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: UpflyCode-windows
+          path: dist/*.zip
+          retention-days: 14
+
+  macos:
+    needs: versao
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Baixar VSCodium e português
+        run: |
+          bash editor/scripts/fetch-deps.sh darwin-arm64
+          bash editor/scripts/fetch-deps.sh darwin-x64
+      - name: Gerar pacotes
+        run: |
+          V="${{ needs.versao.outputs.version }}"
+          mkdir -p dist
+          bash editor/scripts/build-macos.sh editor/.cache/VSCodium-darwin-arm64-*.zip "$V" "$PWD/dist" editor/.cache/pt-br.vsix
+          bash editor/scripts/build-macos.sh editor/.cache/VSCodium-darwin-x64-*.zip   "$V" "$PWD/dist" editor/.cache/pt-br.vsix
+      - name: Instalação de teste
+        run: |
+          V="${{ needs.versao.outputs.version }}"
+          T="$RUNNER_TEMP/pkg"; mkdir -p "$T"
+          ditto -x -k "dist/UpflyCode-$V-macos-arm64.zip" "$T"
+          bash "$T/UpflyCode-$V/scripts/macos/install.sh" --no-launch --no-extensions
+          test -d "$HOME/Applications/Upfly Code.app"
+          codesign --verify --deep "$HOME/Applications/Upfly Code.app"
+          grep -q pt-br "$HOME/Library/Application Support/Upfly Code/languagepacks.json"
+          "$HOME/Applications/Upfly Code.app/Contents/Resources/app/bin/upfly-code" --version
+          bash "$T/UpflyCode-$V/scripts/macos/uninstall.sh"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: UpflyCode-macos
+          path: dist/*.zip
+          retention-days: 14
+
+  publicar:
+    needs: [versao, linux, windows, macos]
+    if: needs.versao.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Notas da versão
+        run: |
+          V="${{ needs.versao.outputs.version }}"
           awk -v v="$V" '
             $0 ~ "^## " v "( |$)" {on=1; next}
             on && /^## / {exit}
@@ -76,21 +173,17 @@ jobs:
           ' CHANGELOG.md > notes.md
           [ -s notes.md ] || echo "Upfly Code $V" > notes.md
           cat notes.md
-
       - name: Publicar Release
-        if: steps.exists.outputs.published == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          V="${{ steps.v.outputs.version }}"
-          # Cópias com nome fixo: o site baixa direto de
-          # releases/latest/download/UpflyCode-<sistema>.<ext>
-          cp installers/windows/UpflyCode-$V-windows.zip  UpflyCode-windows.zip
-          cp installers/macos/UpflyCode-$V-macos.zip      UpflyCode-macos.zip
-          cp installers/linux/UpflyCode-$V-linux.tar.gz   UpflyCode-linux.tar.gz
-          gh release create "v$V" \
-            installers/windows/UpflyCode-$V-windows.zip \
-            installers/macos/UpflyCode-$V-macos.zip \
-            installers/linux/UpflyCode-$V-linux.tar.gz \
-            UpflyCode-windows.zip UpflyCode-macos.zip UpflyCode-linux.tar.gz \
-            --title "Upfly Code $V" --notes-file notes.md --target "$GITHUB_SHA"
+          V="${{ needs.versao.outputs.version }}"
+          cd dist
+          ls -la
+          cp "UpflyCode-$V-windows.zip"         UpflyCode-windows.zip
+          cp "UpflyCode-$V-macos-arm64.zip"     UpflyCode-macos.zip
+          cp "UpflyCode-$V-macos-x64.zip"       UpflyCode-macos-intel.zip
+          cp "UpflyCode-$V-linux-x64.tar.gz"    UpflyCode-linux.tar.gz
+          cp "UpflyCode-$V-linux-arm64.tar.gz"  UpflyCode-linux-arm64.tar.gz
+          gh release create "v$V" ./*.zip ./*.tar.gz \
+            --title "Upfly Code $V" --notes-file ../notes.md --target "$GITHUB_SHA"
