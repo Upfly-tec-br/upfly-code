@@ -263,7 +263,7 @@ try {
 
     Write-Host ''
     Write-Host "  Upfly Code $Version instalado com sucesso!" -ForegroundColor Green
-    Write-Host '  Ctrl+Shift+O abre uma pasta  ·  Ctrl+Shift+E mostra os arquivos' -ForegroundColor DarkGray
+    Write-Host '  Dentro dele, aperte F1 (ou clique com o botão direito) para ver o menu' -ForegroundColor DarkGray
     Write-Host ''
     Write-Host '  Inclui componentes de código aberto. Licenças em LICENSES.' -ForegroundColor DarkGray
     Write-Host ''

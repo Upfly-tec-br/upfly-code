@@ -16,7 +16,11 @@ printf '\033[1;38;2;0;128;255m  UPFLY CODE\033[0m\n'
 printf '\033[2m  Desinstalador para Linux\033[0m\n\n'
 printf '\033[36m  > Removendo o Upfly Code...\033[0m\n'
 rm -f "$HOME/.local/bin/upfly-code"
-rm -f "$DATA/applications/upfly-code.desktop"
+rm -f "$DATA/applications/upfly-code.desktop" "$DATA/applications/UpflyCode.desktop"
+# volta a mostrar o atalho do motor, se foi o Upfly Code que o escondeu
+for f in "$DATA/applications/org.wezfurlong.wezterm.desktop" "$DATA/applications/wezterm.desktop"; do
+  grep -q '^X-Upfly-Code-Oculto=true' "$f" 2>/dev/null && rm -f "$f"
+done
 rm -f "$DATA/icons/hicolor/256x256/apps/upfly-code.png" "$DATA/icons/hicolor/512x512/apps/upfly-code.png"
 rm -rf "$DATA/upfly-code"
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DATA/applications" >/dev/null 2>&1 || true

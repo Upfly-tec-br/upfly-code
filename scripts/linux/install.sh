@@ -162,20 +162,49 @@ chmod +x "$BIN_DIR/upfly-code"
 cp "$PACKAGE_ROOT/branding/icon-256.png" "$ICONS_DIR/256x256/apps/upfly-code.png"
 cp "$PACKAGE_ROOT/branding/icon-512.png" "$ICONS_DIR/512x512/apps/upfly-code.png"
 
-cat > "$APPS_DIR/upfly-code.desktop" <<DESKTOP
+# O nome do arquivo é igual à classe da janela (UpflyCode): assim o GNOME, o
+# KDE e outros ligam a janela a este atalho e mostram o ícone e o nome certos.
+rm -f "$APPS_DIR/upfly-code.desktop"
+cat > "$APPS_DIR/UpflyCode.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=Upfly Code
+Name[pt_BR]=Upfly Code
 GenericName=Terminal
-Comment=Terminal da Upfly
+GenericName[pt_BR]=Terminal
+Comment=Terminal da Upfly com o Claude ao lado
+Comment[pt_BR]=Terminal da Upfly com o Claude ao lado
 Exec=${BIN_DIR}/upfly-code %f
 Icon=upfly-code
 Terminal=false
 Categories=System;TerminalEmulator;Development;
-Keywords=terminal;shell;claude;upfly;
+Keywords=terminal;shell;claude;upfly;prompt;console;
+Keywords[pt_BR]=terminal;shell;claude;upfly;prompt;console;linha de comando;
 StartupWMClass=UpflyCode
+StartupNotify=true
 MimeType=inode/directory;
+Actions=nova-janela;
+
+[Desktop Action nova-janela]
+Name=Nova janela
+Name[pt_BR]=Nova janela
+Exec=${BIN_DIR}/upfly-code
 DESKTOP
+
+# Um aplicativo só no menu: esconde o atalho do motor (WezTerm), a menos que
+# a pessoa já use o WezTerm por conta própria (tem configuração pessoal dele).
+if [ ! -e "$HOME/.wezterm.lua" ] && [ ! -d "${XDG_CONFIG_HOME:-$HOME/.config}/wezterm" ]; then
+  for id in org.wezfurlong.wezterm wezterm; do
+    cat > "$APPS_DIR/$id.desktop" <<HIDE
+[Desktop Entry]
+Type=Application
+Name=WezTerm
+Exec=wezterm
+NoDisplay=true
+X-Upfly-Code-Oculto=true
+HIDE
+  done
+fi
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APPS_DIR" >/dev/null 2>&1 || true
 command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q "$ICONS_DIR" >/dev/null 2>&1 || true
 ok "Atalho criado: Upfly Code"
@@ -202,7 +231,7 @@ fi
 echo
 printf '\033[32m  Upfly Code instalado com sucesso!\033[0m\n'
 printf '  Abra "Upfly Code" pelo menu de aplicativos.\n'
-printf '\033[2m  Ctrl+Shift+O abre uma pasta  ·  Ctrl+Shift+E mostra os arquivos\033[0m\n\n'
+printf '\033[2m  Dentro dele, aperte F1 (ou clique com o botão direito) para ver o menu\033[0m\n\n'
 printf '\033[2m  Inclui componentes de código aberto. Licenças em LICENSES.\033[0m\n\n'
 if [ "$LAUNCH" = 1 ] && { [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; }; then
   printf '\033[36m  Abrindo o Upfly Code... na primeira vez ele ajuda você a conectar sua conta do Claude.\033[0m\n\n'

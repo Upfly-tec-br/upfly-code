@@ -763,7 +763,7 @@ func (a *App) toggleHidden() {
 func revealLabel() string {
 	switch {
 	case isWindows():
-		return "Mostrar no Explorer"
+		return "Mostrar no Explorador de Arquivos"
 	case isMac():
 		return "Mostrar no Finder"
 	}

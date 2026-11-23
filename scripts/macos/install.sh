@@ -2,11 +2,11 @@
 # Upfly Code - instalador para macOS
 # (Nota técnica: o motor de terminal é o WezTerm oficial, MIT.)
 #
-# 1. Instala o motor de terminal (Homebrew; sem Homebrew, o .zip oficial).
+# 1. Baixa o motor de terminal (WezTerm oficial, .zip do GitHub).
 # 2. Copia a configuração para ~/Library/Application Support/UpflyCode.
-# 3. Cria o aplicativo "Upfly Code" em ~/Applications, com o ícone da Upfly.
-#    É um atalho que abre o WezTerm oficial com a configuração Upfly; o
-#    WezTerm.app (assinado pelo autor) não é modificado.
+# 3. Cria o aplicativo "Upfly Code" em ~/Applications: é o motor com nome,
+#    ícone e configuração da Upfly. Assim só aparece UM aplicativo (Upfly Code)
+#    no Launchpad e no Dock, com o ícone certo.
 # 4. Instala o Claude Code (pule com --no-claude) e abre o Upfly Code
 #    (pule com --no-launch), que ajuda a conectar a conta do Claude.
 #
@@ -46,33 +46,25 @@ fail() {
 }
 trap fail ERR
 
-find_wezterm_app() {
-  local c
-  for c in "/Applications/WezTerm.app" "$HOME/Applications/WezTerm.app"; do
-    if [ -x "$c/Contents/MacOS/wezterm-gui" ]; then echo "$c"; return 0; fi
-  done
-  return 1
-}
-
-install_wezterm() {
-  if command -v brew >/dev/null 2>&1; then
-    brew install --cask wezterm >>"$LOG" 2>&1 || true
-    if find_wezterm_app >/dev/null; then return 0; fi
-    echo "Homebrew não concluiu; usando o .zip oficial." >>"$LOG"
-  fi
-  note "Baixando os componentes (pode levar alguns minutos)..."
-  local tmp zip
+# Coloca uma cópia do motor (WezTerm.app oficial) em $1
+get_engine() {
+  local dest="$1" tmp app
   tmp="$(mktemp -d)"
-  zip="$tmp/terminal.zip"
-  curl -fsSL -o "$zip" \
-    "https://github.com/wezterm/wezterm/releases/download/${WEZTERM_ZIP_VERSION}/WezTerm-macos-${WEZTERM_ZIP_VERSION}.zip"
-  (cd "$tmp" && unzip -q terminal.zip)
-  mkdir -p "$HOME/Applications"
-  local app
-  app="$(find "$tmp" -maxdepth 3 -name 'WezTerm.app' -type d | head -n1)"
-  [ -n "$app" ] || { echo "app não encontrado no .zip" >>"$LOG"; fail; }
-  rm -rf "$HOME/Applications/WezTerm.app"
-  mv "$app" "$HOME/Applications/WezTerm.app"
+  note "Baixando os componentes (pode levar alguns minutos)..."
+  if curl -fsSL -o "$tmp/terminal.zip" \
+      "https://github.com/wezterm/wezterm/releases/download/${WEZTERM_ZIP_VERSION}/WezTerm-macos-${WEZTERM_ZIP_VERSION}.zip" \
+      >>"$LOG" 2>&1 && (cd "$tmp" && unzip -q terminal.zip) >>"$LOG" 2>&1; then
+    app="$(find "$tmp" -maxdepth 3 -name 'WezTerm.app' -type d | head -n1)"
+  fi
+  if [ -z "${app:-}" ]; then
+    # sem internet: reaproveita um WezTerm já instalado
+    for c in "/Applications/WezTerm.app" "$HOME/Applications/WezTerm.app"; do
+      [ -x "$c/Contents/MacOS/wezterm-gui" ] && app="$c" && break
+    done
+  fi
+  [ -n "${app:-}" ] || { echo "motor não obtido" >>"$LOG"; rm -rf "$tmp"; return 1; }
+  rm -rf "$dest"
+  ditto "$app" "$dest"
   rm -rf "$tmp"
 }
 
@@ -80,16 +72,14 @@ echo
 printf '\033[1;38;2;0;128;255m  UPFLY CODE %s\033[0m\n' "$VERSION"
 printf '\033[2m  Instalador para macOS\033[0m\n\n'
 
-# 1. Motor de terminal
+# 1. Motor de terminal (vira o próprio "Upfly Code.app")
 step "Instalando o Upfly Code..."
-if ! WEZ_APP="$(find_wezterm_app)"; then
-  if [ "$SKIP_WEZTERM" = 1 ]; then
-    echo "motor não encontrado e --skip-wezterm usado" >>"$LOG"; fail
-  fi
-  install_wezterm
-  WEZ_APP="$(find_wezterm_app)" || fail
+mkdir -p "$HOME/Applications"
+if [ "$SKIP_WEZTERM" = 1 ] && [ -x "$APP_DIR/Contents/MacOS/wezterm-gui" ]; then
+  echo "motor mantido: $APP_DIR" >>"$LOG"
+else
+  get_engine "$APP_DIR" || fail
 fi
-echo "motor: $WEZ_APP" >>"$LOG"
 
 # 2. Arquivos
 step "Aplicando a identidade visual Upfly..."
@@ -114,47 +104,42 @@ if [ -f "$PACKAGE_ROOT/tools/upfly-files-$FARCH" ]; then
 fi
 rm -f "$INSTALL_DIR/tools/broot"; rm -rf "$INSTALL_DIR/config/broot"
 
-# 3. Aplicativo "Upfly Code" (launcher com ícone próprio)
-step "Criando o aplicativo Upfly Code..."
-rm -rf "$APP_DIR"
-mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
-cp "$PACKAGE_ROOT/branding/icon.icns" "$APP_DIR/Contents/Resources/icon.icns"
-cat > "$APP_DIR/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleName</key><string>Upfly Code</string>
-  <key>CFBundleDisplayName</key><string>Upfly Code</string>
-  <key>CFBundleIdentifier</key><string>br.tec.upfly.code</string>
-  <key>CFBundleVersion</key><string>${VERSION}</string>
-  <key>CFBundleShortVersionString</key><string>${VERSION}</string>
-  <key>CFBundleExecutable</key><string>upfly-code</string>
-  <key>CFBundleIconFile</key><string>icon</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>LSUIElement</key><true/>
-</dict>
-</plist>
-PLIST
-cat > "$APP_DIR/Contents/MacOS/upfly-code" <<LAUNCHER
-#!/bin/bash
-# Upfly Code: abre o motor de terminal (sem modificá-lo) com a configuração Upfly.
-WEZ="${WEZ_APP}"
-[ -d "\$WEZ" ] || WEZ="/Applications/WezTerm.app"
-[ -d "\$WEZ" ] || WEZ="\$HOME/Applications/WezTerm.app"
-# Aceita uma pasta: upfly-code ~/projetos/meu-app
-DIR="\$HOME"
-if [ -n "\${1:-}" ] && [ -d "\$1" ]; then DIR="\$(cd "\$1" && pwd)"; fi
-exec open -n -a "\$WEZ" --args --config-file "${INSTALL_DIR}/config/wezterm.lua" \\
-  start --always-new-process --cwd "\$DIR"
-LAUNCHER
-chmod +x "$APP_DIR/Contents/MacOS/upfly-code"
+# 3. Nome, ícone e configuração da Upfly no aplicativo
+step "Aplicando nome e ícone do Upfly Code..."
+PLIST="$APP_DIR/Contents/Info.plist"
+PB=/usr/libexec/PlistBuddy
+cp "$PACKAGE_ROOT/branding/icon.icns" "$APP_DIR/Contents/Resources/upfly.icns"
+pset() { $PB -c "Set :$1 $2" "$PLIST" 2>/dev/null || $PB -c "Add :$1 string $2" "$PLIST"; }
+pset CFBundleName "Upfly Code"
+pset CFBundleDisplayName "Upfly Code"
+pset CFBundleIdentifier "br.tec.upfly.code"
+pset CFBundleIconFile "upfly.icns"
+$PB -c "Delete :CFBundleIconName" "$PLIST" 2>/dev/null || true
+$PB -c "Delete :LSEnvironment" "$PLIST" 2>/dev/null || true
+$PB -c "Add :LSEnvironment dict" "$PLIST"
+$PB -c "Add :LSEnvironment:WEZTERM_CONFIG_FILE string ${INSTALL_DIR}/config/wezterm.lua" "$PLIST"
+$PB -c "Add :CFBundleDevelopmentRegion string pt-BR" "$PLIST" 2>/dev/null \
+  || $PB -c "Set :CFBundleDevelopmentRegion pt-BR" "$PLIST"
+{
+  xattr -dr com.apple.quarantine "$APP_DIR" || true
+  # o nome e o ícone mudaram: assina de novo, só para este Mac
+  codesign --force --deep --sign - "$APP_DIR"
+  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP_DIR" || true
+} >>"$LOG" 2>&1
 touch "$APP_DIR"
 ok "Aplicativo criado em Aplicativos (~/Applications)"
 
-# Comando de terminal opcional
+# Comando de terminal: upfly-code [pasta]
 mkdir -p "$HOME/.local/bin"
-ln -sf "$APP_DIR/Contents/MacOS/upfly-code" "$HOME/.local/bin/upfly-code"
+rm -f "$HOME/.local/bin/upfly-code"
+cat > "$HOME/.local/bin/upfly-code" <<LAUNCHER
+#!/bin/bash
+# Upfly Code: abre o aplicativo, opcionalmente numa pasta.
+DIR="\$HOME"
+if [ -n "\${1:-}" ] && [ -d "\$1" ]; then DIR="\$(cd "\$1" && pwd)"; fi
+exec open -n -a "${APP_DIR}" --args start --always-new-process --cwd "\$DIR"
+LAUNCHER
+chmod +x "$HOME/.local/bin/upfly-code"
 
 # 4. Claude Code (opcional)
 if [ "$WITH_CLAUDE" = 1 ]; then
@@ -173,9 +158,9 @@ fi
 echo
 printf '\033[32m  Upfly Code instalado com sucesso!\033[0m\n'
 printf '  Abra "Upfly Code" pelo Launchpad, Spotlight ou pela pasta Aplicativos.\n'
-printf '\033[2m  Ctrl+Shift+O abre uma pasta  ·  Ctrl+Shift+E mostra os arquivos\033[0m\n\n'
+printf '\033[2m  Dentro dele, aperte F1 (ou clique com o botão direito) para ver o menu\033[0m\n\n'
 printf '\033[2m  Inclui componentes de código aberto. Licenças em LICENSES.\033[0m\n\n'
 if [ "$LAUNCH" = 1 ]; then
   printf '\033[36m  Abrindo o Upfly Code... na primeira vez ele ajuda você a conectar sua conta do Claude.\033[0m\n\n'
-  "$APP_DIR/Contents/MacOS/upfly-code" >/dev/null 2>&1 &
+  open -n -a "$APP_DIR" >/dev/null 2>&1 &
 fi

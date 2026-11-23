@@ -95,10 +95,17 @@ if UPFLY_SKIP_TOOL_INIT=1 HOME="$TMPHOME" XDG_DATA_HOME="" PATH="$FAKEBIN:$PATH"
   if grep -qi "wezterm" "$TMPHOME/out"; then fail "a tela do instalador menciona WezTerm"; else pass "tela do instalador só fala em Upfly Code"; fi
   for f in .local/share/upfly-code/config/wezterm.lua .local/share/upfly-code/branding/background.jpg \
            .local/share/upfly-code/bin/upfly-shell.sh .local/bin/upfly-code \
-           .local/share/applications/upfly-code.desktop .local/share/icons/hicolor/512x512/apps/upfly-code.png \
+           .local/share/applications/UpflyCode.desktop .local/share/icons/hicolor/512x512/apps/upfly-code.png \
            .local/share/upfly-code/config/update-repo.txt .local/share/upfly-code/state; do
     [ -e "$TMPHOME/$f" ] && pass "criado ~/$f" || fail "não criado ~/$f"
   done
+  grep -q '^StartupWMClass=UpflyCode$' "$TMPHOME/.local/share/applications/UpflyCode.desktop" \
+    && pass "atalho ligado à janela (UpflyCode)" || fail "atalho sem StartupWMClass=UpflyCode"
+  if grep -q '^NoDisplay=true$' "$TMPHOME/.local/share/applications/org.wezfurlong.wezterm.desktop" 2>/dev/null; then
+    pass "só um aplicativo no menu (motor escondido)"
+  else
+    fail "o atalho do motor continua aparecendo no menu"
+  fi
   out="$(HOME="$TMPHOME" PATH="$FAKEBIN:$PATH" "$TMPHOME/.local/bin/upfly-code")"
   case "$out" in
     *"--config-file $TMPHOME/.local/share/upfly-code/config/wezterm.lua start --always-new-process --class UpflyCode --cwd $TMPHOME"*)
@@ -132,7 +139,8 @@ if UPFLY_SKIP_TOOL_INIT=1 HOME="$TMPHOME" XDG_DATA_HOME="" PATH="$FAKEBIN:$PATH"
     fail "autoatualização: $(printf '%s' "$upd" | sed 's/\x1b\[[0-9;]*m//g' | tail -5)"
   fi
   if HOME="$TMPHOME" XDG_DATA_HOME="" bash "$TMPHOME/.local/share/upfly-code/bin/uninstall.sh" >/dev/null 2>&1 \
-     && [ ! -e "$TMPHOME/.local/share/upfly-code" ] && [ ! -e "$TMPHOME/.local/bin/upfly-code" ]; then
+     && [ ! -e "$TMPHOME/.local/share/upfly-code" ] && [ ! -e "$TMPHOME/.local/bin/upfly-code" ] \
+     && [ ! -e "$TMPHOME/.local/share/applications/org.wezfurlong.wezterm.desktop" ]; then
     pass "uninstall.sh removeu tudo"
   else
     fail "uninstall.sh"

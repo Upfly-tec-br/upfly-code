@@ -38,7 +38,7 @@ programa padrão".
 ## "@ Mencionar no Claude" não faz nada
 
 A barra manda o texto para o painel ao lado na mesma aba. Abra o Claude Code ao
-lado com Ctrl+Espaço, V e tente de novo.
+lado com Ctrl+Shift+A e tente de novo.
 
 ## "Procurar pasta no computador" não abre a janela
 
@@ -60,7 +60,7 @@ lado com Ctrl+Espaço, V e tente de novo.
 ## Quero o PowerShell (ou o zsh no Mac) como padrão
 
 No `wezterm.lua` instalado, troque `shell = 'bash'` por `shell = 'system'`.
-Os outros shells continuam disponíveis em Ctrl+Espaço, L.
+Os outros shells continuam disponíveis no menu (F1) → **Nova aba com…**.
 
 ## O fundo atrapalha a leitura
 
@@ -75,17 +75,17 @@ background_overlay    = 0.35,  -- maior = mais escuro
 
 ## Conectar o Claude Code
 
-Aperte `Ctrl+Espaço` e depois `K`, ou `Ctrl+Shift+P` → "Upfly: conectar conta do
-Claude". O Upfly Code:
+Aperte `F1` e escolha **Conectar o Claude**. O Upfly Code:
 - instala o Claude Code, se faltar, pelo instalador oficial da Anthropic;
 - abre o Claude Code, que leva você ao navegador para entrar na conta.
 
 É preciso ter um plano pago do Claude (Pro, Max, Team ou Enterprise) ou uma
 conta do Claude Console. Para conferir a instalação: `claude doctor`.
 
-## CTRL+Espaço não faz nada
+## Ctrl+Espaço não faz nada
 
-Outro programa está usando esse atalho. Os casos mais comuns são a troca de
+Só os atalhos antigos usam Ctrl+Espaço; o menu (F1) faz tudo o que eles fazem.
+Se quiser usá-los, saiba que outro programa pode estar usando esse atalho. Os casos mais comuns são a troca de
 idioma do teclado no macOS ou no Linux e alguns IMEs no Windows. Você pode:
 - desativar o atalho no outro programa; ou
 - trocar o LEADER no `wezterm.lua`, por exemplo:

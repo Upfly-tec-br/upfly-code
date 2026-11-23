@@ -1,5 +1,23 @@
 # Novidades do Upfly Code
 
+## 1.4.0
+
+- **Tudo em português e fácil de usar:**
+  - **F1** (ou **Ctrl+Shift+P**, ou o **botão direito do mouse**) abre o menu do
+    Upfly Code com tudo o que ele faz: abrir pasta, arquivos, Claude, copiar,
+    colar, dividir a tela, procurar, tamanho da letra, atualizar. É só digitar
+    para procurar.
+  - **Ctrl+C copia** quando há texto selecionado e **Ctrl+V cola**, como em
+    qualquer programa. Sem seleção, Ctrl+C interrompe o programa, como sempre.
+  - **Ctrl+Shift+A** abre o Claude ao lado.
+  - Avisos de fechar aba e o "Nova aba com…" agora são em português. As telas
+    do motor que só existiam em inglês foram desligadas.
+  - A barra de cima mostra "Menu: F1" e, quando falta, "Conectar o Claude: aperte F1".
+  - No Windows, o Git Bash e o Git falam português.
+- **Um aplicativo só:** no Linux e no Mac, o motor de terminal não aparece mais
+  como um segundo aplicativo ("WezTerm") no menu, no Launchpad ou no Dock.
+  A janela fica ligada ao Upfly Code, com o ícone e o nome certos.
+
 ## 1.3.0
 
 - **Nova barra lateral de arquivos**, no estilo do VS Code e do Trae

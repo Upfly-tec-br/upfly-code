@@ -16,7 +16,9 @@ printf '\033[1;38;2;0;128;255m  UPFLY CODE\033[0m\n'
 printf '\033[2m  Desinstalador para macOS\033[0m\n\n'
 printf '\033[36m  > Removendo o Upfly Code...\033[0m\n'
 rm -rf "$APP_DIR"
-[ -L "$HOME/.local/bin/upfly-code" ] && rm -f "$HOME/.local/bin/upfly-code"
+if [ -L "$HOME/.local/bin/upfly-code" ] || grep -q "Upfly Code" "$HOME/.local/bin/upfly-code" 2>/dev/null; then
+  rm -f "$HOME/.local/bin/upfly-code"
+fi
 rm -rf "$INSTALL_DIR"
 
 if [ "$REMOVE_WEZTERM" = 1 ]; then

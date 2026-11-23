@@ -16,7 +16,7 @@ as mudanças valem na hora. No Windows, ela roda numa janela à parte. Se a vers
 nova trocar o motor ou o ícone, essa janela pede para você fechar o Upfly Code
 e termina sozinha.
 
-Para verificar a qualquer momento: `Ctrl+Espaço` e depois `U`.
+Para verificar a qualquer momento: `F1` → **Procurar atualização do Upfly Code**.
 
 ### Atualizar manualmente
 

@@ -5,7 +5,7 @@
 # Rodado pelo bash (modo padrão, Git Bash no Windows): reabre o mesmo bash como login.
 # Rodado pelo /bin/sh (modo "system"): abre o shell do usuário ($SHELL).
 
-printf '\033[38;2;0;128;255m▲\033[0m \033[2mUpfly Code  ·  Ctrl+Shift+O abrir pasta  ·  Ctrl+Shift+E arquivos  ·  Ctrl+Espaço, C Claude\033[0m\n\n'
+printf '\033[38;2;0;128;255m▲\033[0m \033[2mUpfly Code  ·  F1 menu  ·  Ctrl+Shift+O abrir pasta  ·  Ctrl+Shift+E arquivos  ·  Ctrl+Shift+A Claude\033[0m\n\n'
 
 # Claude Code (instalação nativa) fica em ~/.local/bin
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH"; export PATH ;; esac

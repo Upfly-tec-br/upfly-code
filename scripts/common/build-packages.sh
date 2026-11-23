@@ -6,7 +6,7 @@
 #   installers/linux/UpflyCode-<versão>-linux.tar.gz
 #
 # Uso: scripts/common/build-packages.sh
-# Requisitos: bash, zip, tar, Go 1.22+ (para compilar a barra lateral)
+# Requisitos: bash, zip, tar, Go 1.24+ (para compilar a barra lateral)
 #   UPFLY_GO_MIRRORS=1  usa os espelhos do GitHub para golang.org/x (redes restritas)
 #   UPFLY_UPDATE_REPO   repositório das atualizações (preenchido pelo GitHub Actions)
 set -euo pipefail

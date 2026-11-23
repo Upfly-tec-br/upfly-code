@@ -24,8 +24,11 @@ Passo a passo e dúvidas comuns: [Windows](docs/instalacao-windows.md),
 
 ## Primeiros passos
 
-1. Abra o Upfly Code e aperte **Ctrl+Shift+O** para **abrir uma pasta**. A lista
-   mostra:
+**Não decorou nenhum atalho? Aperte `F1` ou clique com o botão direito.** Abre o
+menu do Upfly Code, em português, com tudo o que ele faz. É só digitar para
+procurar (por exemplo, "claude" ou "pasta") e apertar Enter.
+
+1. Aperte **Ctrl+Shift+O** para **abrir uma pasta**. A lista mostra:
    - **Procurar pasta no computador...**, que abre a janela de pastas do sistema;
    - **Digitar ou colar um caminho...**;
    - suas pastas recentes;
@@ -33,12 +36,12 @@ Passo a passo e dúvidas comuns: [Windows](docs/instalacao-windows.md),
      `projetos`, `Projects`, `code`, `dev`...
 2. A pasta abre numa aba nova, com os **arquivos na barra lateral à esquerda**,
    como no Trae. **Ctrl+Shift+E** mostra ou esconde a barra.
-3. **Ctrl+Espaço** e depois **C** abre o **Claude Code** na pasta do projeto.
+3. **Ctrl+Shift+A** abre o **Claude** ao lado, na pasta do projeto.
    Na barra lateral, aperte **@** num arquivo para citá-lo no Claude.
 
 Na primeira vez, o Upfly Code oferece **instalar o Claude Code e entrar na sua
-conta**. É só escolher a opção e fazer o login no navegador. Depois, se precisar,
-use `Ctrl+Espaço`, `K`.
+conta**. É só escolher a opção e fazer o login no navegador. Enquanto faltar,
+aparece "Conectar o Claude: aperte F1" na barra de cima.
 
 No Windows, também dá para clicar com o botão direito numa pasta e escolher
 **"Abrir no Upfly Code"**. No macOS e no Linux, rode `upfly-code <pasta>`.
@@ -47,27 +50,22 @@ No Windows, também dá para clicar com o botão direito numa pasta e escolher
 
 | Atalho | O que faz |
 |---|---|
+| `F1`, `Ctrl+Shift+P` ou botão direito | **Menu com tudo**, em português |
 | `Ctrl+Shift+O` | **Abrir pasta** (recentes, projetos, procurar, digitar caminho) |
 | `Ctrl+Shift+E` | **Mostrar/esconder os arquivos** (barra lateral) |
-| `Ctrl+Shift+P` | Paleta de comandos (tem as entradas "Upfly: ...") |
-| `Ctrl+Shift+T` | Nova aba |
-| `Ctrl+Shift+R` | Recarrega a configuração |
+| `Ctrl+Shift+A` | **Abrir o Claude** ao lado |
+| `Ctrl+C` / `Ctrl+V` | Copiar (com texto selecionado) / colar. No Mac: `Cmd+C` / `Cmd+V` |
+| `Ctrl+Shift+T` / `Ctrl+Shift+W` | Nova aba / fechar aba |
+| `Ctrl+Shift+F` | Procurar texto |
+| `Ctrl+Shift+K` | Limpar a tela |
+| `Ctrl+=` / `Ctrl+-` | Aumentar / diminuir a letra |
+| `F11` | Tela cheia |
 
-**LEADER** = `Ctrl+Espaço`. Solte as teclas e aperte a próxima em até 1,5 segundo.
+Sem texto selecionado, `Ctrl+C` interrompe o programa, como sempre no terminal.
+Para colar uma **imagem** no Claude Code, use `Ctrl+Shift+V`.
 
-| Atalho | O que faz |
-|---|---|
-| LEADER, `c` | **Claude Code** em nova aba, na pasta atual |
-| LEADER, `v` | **Claude Code** ao lado (painel dividido) |
-| LEADER, `o` / `e` | O mesmo que Ctrl+Shift+O / Ctrl+Shift+E |
-| LEADER, `\` / `-` | Divide o painel lado a lado / em cima e embaixo |
-| LEADER, setas | Move entre painéis |
-| LEADER, `z` | Amplia/restaura o painel atual |
-| LEADER, `x` | Fecha o painel |
-| LEADER, `l` | Menu de shells (Git Bash, PowerShell, CMD, Claude Code) |
-| LEADER, `b` | Liga/desliga a imagem de fundo |
-| LEADER, `u` | Verifica e instala atualização |
-| LEADER, `k` | Conectar/instalar o Claude Code |
+Os atalhos antigos com `Ctrl+Espaço` (por exemplo `Ctrl+Espaço`, `C` para o
+Claude numa aba nova) continuam funcionando.
 
 **Na barra lateral de arquivos** (funciona como no VS Code/Trae):
 
@@ -93,7 +91,7 @@ e uma bolinha nas pastas com mudanças.
 
 O Upfly Code procura versões novas no GitHub ao abrir e a cada 6 horas. Quando
 encontra uma, mostra o aviso **"Atualizar agora"** e um selo amarelo na barra
-superior. Também dá para atualizar com `Ctrl+Espaço`, `U`.
+superior. Também dá para atualizar pelo menu (`F1`).
 
 Para publicar uma versão nova, mude o arquivo `VERSION` e envie. O GitHub gera
 os pacotes sozinho. Veja [docs/publicar-versao.md](docs/publicar-versao.md).
@@ -107,7 +105,7 @@ Tudo fica no `config/wezterm.lua`, carregado com `--config-file`. Isso inclui:
 - cores, fundo e título da janela;
 - shell padrão (Git Bash / bash);
 - abrir pasta e barra lateral;
-- atalhos e paleta de comandos;
+- atalhos e o menu em português (F1);
 - integração com o Claude Code.
 
 A configuração pessoal de quem já usa o WezTerm (`~/.wezterm.lua`) não é afetada.

@@ -168,6 +168,11 @@ if is_windows and BASH then
   -- Claude Code no Windows usa o Git Bash; garante que ele ache o portátil também
   config.set_environment_variables.CLAUDE_CODE_GIT_BASH_PATH = BASH
 end
+-- Idioma: português do Brasil por padrão (mensagens do Git e do Git Bash).
+-- No macOS e no Linux vale o idioma do sistema.
+if is_windows and not os.getenv('LANG') then
+  config.set_environment_variables.LANG = 'pt_BR.UTF-8'
+end
 
 -- -----------------------------------------------------------------------------
 -- Diretório atual do painel
@@ -188,7 +193,7 @@ end
 -- -----------------------------------------------------------------------------
 -- Integração com o Claude Code
 -- -----------------------------------------------------------------------------
-local MSG_NO_CLAUDE = 'Claude Code nao encontrado. Use Ctrl+Espaco e depois K para instalar e conectar.'
+local MSG_NO_CLAUDE = 'O Claude Code ainda nao esta instalado. Aperte F1 e escolha Conectar o Claude.'
 
 local function claude_args()
   if BASH then
@@ -458,7 +463,7 @@ end)
 --   O repositório fica em config/update-repo.txt (ex.: upfly/upfly-code).
 --   Ao abrir e a cada 6 h, o Upfly Code consulta a última release. Se houver
 --   versão nova, mostra um aviso com o botão "Atualizar agora", um selo na
---   barra superior e a entrada "Upfly: atualizar" na paleta (Ctrl+Shift+P).
+--   barra superior e a opção "Atualizar" no menu (F1).
 -- -----------------------------------------------------------------------------
 local function read_first_line(p)
   local f = io.open(p, 'r')
@@ -760,7 +765,8 @@ config.visual_bell = {
   fade_in_duration_ms = 75, fade_out_duration_ms = 150,
   target = 'CursorColor',
 }
-config.window_close_confirmation = 'AlwaysPrompt'
+-- O aviso de fechar do motor é em inglês; o Upfly Code usa o seu (Ctrl+Shift+W).
+config.window_close_confirmation = 'NeverPrompt'
 config.hide_tab_bar_if_only_one_tab = false
 config.use_fancy_tab_bar = true
 config.tab_max_width = 32
@@ -841,15 +847,15 @@ end)
 
 -- Status no canto direito da barra de abas
 wezterm.on('update-status', function(window, pane)
-  local leader = window:leader_is_active() and '  ⌨ LEADER ' or ''
+  local leader = window:leader_is_active() and '  ⌨ Atalho: aperte a próxima tecla ' or ''
   local upd = wezterm.GLOBAL.upfly_update
   if upd and not is_newer(upd.version, CURRENT_VERSION) then
     wezterm.GLOBAL.upfly_update = nil -- já atualizado
     upd = nil
   end
-  local badge = upd and (' ⬆ Atualização ' .. upd.version .. ' — Ctrl+Espaço, U ') or ''
+  local badge = upd and (' ⬆ Nova versão ' .. upd.version .. ': aperte F1 ') or ''
   local cs = wezterm.GLOBAL.upfly_claude
-  local claude_badge = (cs == 'missing' or cs == 'logged_out') and ' ● Conectar Claude — Ctrl+Espaço, K ' or ''
+  local claude_badge = (cs == 'missing' or cs == 'logged_out') and ' ● Conectar o Claude: aperte F1 ' or ''
   window:set_right_status(wezterm.format {
     { Foreground = { Color = '#FFC857' } }, { Text = leader },
     { Background = { Color = upd and '#FFC857' or BRAND.secondary } },
@@ -857,7 +863,8 @@ wezterm.on('update-status', function(window, pane)
     { Background = { Color = BRAND.secondary } },
     { Foreground = { Color = '#FF9F5A' } }, { Text = claude_badge },
     { Background = { Color = BRAND.secondary } },
-    { Foreground = { Color = BRAND.accent } }, { Text = '  ▲ ' },
+    { Foreground = { Color = BRAND.tab_text } }, { Text = '  ☰ Menu: F1  ' },
+    { Foreground = { Color = BRAND.accent } }, { Text = '▲ ' },
     { Foreground = { Color = BRAND.tab_text } },
     { Text = BRAND.terminal_name .. '  ' .. wezterm.strftime('%H:%M') .. '  ' },
   })
@@ -883,67 +890,51 @@ wezterm.on('upfly-toggle-background', function(window, pane)
 end)
 
 -- -----------------------------------------------------------------------------
--- Atalhos
---   Estilo VS Code:  CTRL+SHIFT+O abrir pasta · CTRL+SHIFT+E arquivos
---   LEADER = CTRL+Espaço (solte e aperte a próxima tecla em até 1,5 s)
+-- Fechar com aviso em português
+--   Só pergunta se algum programa (ex.: Claude Code) ainda estiver rodando.
 -- -----------------------------------------------------------------------------
-config.leader = { key = 'Space', mods = 'CTRL', timeout_milliseconds = 1500 }
+local function busy_program(p)
+  local ok, name = pcall(function() return p:get_foreground_process_name() end)
+  if not ok or not name or name == '' then return nil end
+  local base = (name:match('([^/\\]+)$') or name):lower()
+  if SHELL_NAMES[base] or base:find('^upfly%-files') or base:find('^wezterm') then return nil end
+  if base:find('^claude') or base:find('^node') then return 'o Claude Code' end
+  return base:gsub('%.exe$', '')
+end
 
-config.keys = {
-  -- Claude Code
-  { key = 'c', mods = 'LEADER', action = spawn_claude('tab') },
-  { key = 'v', mods = 'LEADER', action = spawn_claude('split') },
+local function confirm_close(window, pane, what)
+  local panes = {}
+  if what == 'tab' then
+    for _, p in ipairs(pane:tab():panes()) do table.insert(panes, p) end
+  else
+    panes = { pane }
+  end
+  local running
+  for _, p in ipairs(panes) do running = running or busy_program(p) end
+  local close = what == 'tab' and act.CloseCurrentTab { confirm = false }
+    or act.CloseCurrentPane { confirm = false }
+  if not running then
+    window:perform_action(close, pane)
+    return
+  end
+  window:perform_action(act.InputSelector {
+    title = what == 'tab' and 'Fechar esta aba?' or 'Fechar este painel?',
+    description = 'Ainda tem ' .. running .. ' rodando aqui. Ele será encerrado.',
+    choices = {
+      { id = 'no',  label = 'Não, continuar aqui' },
+      { id = 'yes', label = 'Sim, fechar' },
+    },
+    action = wezterm.action_callback(function(w, p, id)
+      if id == 'yes' then w:perform_action(close, p) end
+    end),
+  }, pane)
+end
 
-  -- Pastas e arquivos (como no VS Code)
-  { key = 'o', mods = 'CTRL|SHIFT', action = open_folder_picker },
-  { key = 'O', mods = 'CTRL|SHIFT', action = open_folder_picker },
-  { key = 'e', mods = 'CTRL|SHIFT', action = toggle_explorer },
-  { key = 'E', mods = 'CTRL|SHIFT', action = toggle_explorer },
-  { key = 'o', mods = 'LEADER', action = open_folder_picker },
-  { key = 'e', mods = 'LEADER', action = toggle_explorer },
-
-  -- Painéis
-  { key = '\\', mods = 'LEADER', action = act.SplitHorizontal { domain = 'CurrentPaneDomain' } },
-  { key = '-',  mods = 'LEADER', action = act.SplitVertical { domain = 'CurrentPaneDomain' } },
-  { key = 'x',  mods = 'LEADER', action = act.CloseCurrentPane { confirm = true } },
-  { key = 'z',  mods = 'LEADER', action = act.TogglePaneZoomState },
-  { key = 'LeftArrow',  mods = 'LEADER', action = act.ActivatePaneDirection 'Left' },
-  { key = 'RightArrow', mods = 'LEADER', action = act.ActivatePaneDirection 'Right' },
-  { key = 'UpArrow',    mods = 'LEADER', action = act.ActivatePaneDirection 'Up' },
-  { key = 'DownArrow',  mods = 'LEADER', action = act.ActivatePaneDirection 'Down' },
-
-  -- Abas
-  { key = 't', mods = 'LEADER', action = act.SpawnTab 'CurrentPaneDomain' },
-  { key = 'l', mods = 'LEADER', action = act.ShowLauncher },
-
-  -- Visual
-  { key = 'b', mods = 'LEADER', action = act.EmitEvent 'upfly-toggle-background' },
-
-  -- Atualização e conta do Claude
-  { key = 'u', mods = 'LEADER', action = update_action },
-  { key = 'k', mods = 'LEADER', action = connect_claude_action },
-
-  -- Envia CTRL+Espaço de verdade ao apertar duas vezes
-  { key = 'Space', mods = 'LEADER|CTRL', action = act.SendKey { key = 'Space', mods = 'CTRL' } },
-}
-
--- Entradas extras na paleta de comandos (CTRL+SHIFT+P)
-wezterm.on('augment-command-palette', function(window, pane)
-  return {
-    { brief = 'Upfly: abrir pasta', icon = 'md_folder_open', action = open_folder_picker },
-    { brief = 'Upfly: mostrar/ocultar arquivos (barra lateral)', icon = 'md_file_tree',
-      action = toggle_explorer },
-    { brief = 'Upfly: abrir Claude Code em nova aba', icon = 'md_robot', action = spawn_claude('tab') },
-    { brief = 'Upfly: abrir Claude Code ao lado', icon = 'md_robot_outline', action = spawn_claude('split') },
-    { brief = 'Upfly: ligar/desligar imagem de fundo', icon = 'md_image',
-      action = act.EmitEvent 'upfly-toggle-background' },
-    { brief = 'Upfly: verificar/instalar atualização', icon = 'md_update', action = update_action },
-    { brief = 'Upfly: conectar conta do Claude', icon = 'md_key', action = connect_claude_action },
-  }
-end)
+local close_tab  = wezterm.action_callback(function(w, p) confirm_close(w, p, 'tab') end)
+local close_pane = wezterm.action_callback(function(w, p) confirm_close(w, p, 'pane') end)
 
 -- -----------------------------------------------------------------------------
--- Menu de lançamento (clique direito no botão +, ou LEADER + l)
+-- Nova aba com... (substitui o lançador do motor, que é em inglês)
 -- -----------------------------------------------------------------------------
 local launch_menu = {
   { label = 'Claude Code', args = claude_args() },
@@ -958,5 +949,231 @@ else
   table.insert(launch_menu, { label = 'Shell do sistema (' .. unix_shell() .. ')', args = { unix_shell(), '-l' } })
 end
 config.launch_menu = launch_menu
+
+local new_tab_with = wezterm.action_callback(function(window, pane)
+  local choices = {}
+  for i, item in ipairs(launch_menu) do
+    table.insert(choices, { id = tostring(i), label = item.label })
+  end
+  window:perform_action(act.InputSelector {
+    title = 'Abrir nova aba com…',
+    description = 'Enter abre  ·  Esc cancela',
+    choices = choices,
+    action = wezterm.action_callback(function(w, p, id)
+      local item = id and launch_menu[tonumber(id)]
+      if item then
+        w:perform_action(act.SpawnCommandInNewTab { args = item.args, cwd = pane_cwd(p) }, p)
+      end
+    end),
+  }, pane)
+end)
+
+-- -----------------------------------------------------------------------------
+-- Copiar e colar como em qualquer programa
+--   Ctrl+C copia quando há texto selecionado; sem seleção, interrompe o
+--   programa (como sempre no terminal). Ctrl+V cola.
+-- -----------------------------------------------------------------------------
+local smart_copy = wezterm.action_callback(function(window, pane)
+  local sel = window:get_selection_text_for_pane(pane)
+  if sel and sel ~= '' then
+    window:perform_action(act.CopyTo 'Clipboard', pane)
+    window:perform_action(act.ClearSelection, pane)
+  else
+    window:perform_action(act.SendKey { key = 'c', mods = 'CTRL' }, pane)
+  end
+end)
+
+-- -----------------------------------------------------------------------------
+-- Menu do Upfly Code (F1, Ctrl+Shift+P ou botão direito do mouse)
+--   Tudo o que o terminal faz, em português, com busca por nome.
+-- -----------------------------------------------------------------------------
+local MOD = is_mac and 'Cmd' or 'Ctrl'
+
+local function menu_items(window, pane)
+  local items = {}
+  local function add(id, label, key, run)
+    table.insert(items, { id = id, label = label, key = key, run = run })
+  end
+  local sel = window:get_selection_text_for_pane(pane)
+  if sel and sel ~= '' then
+    add('copy', 'Copiar texto selecionado', MOD .. '+C', function(w, p)
+      w:perform_action(act.CopyTo 'Clipboard', p)
+      w:perform_action(act.ClearSelection, p)
+    end)
+  end
+  local cs = wezterm.GLOBAL.upfly_claude
+  if cs == 'missing' or cs == 'logged_out' then
+    add('claude-connect', '● Conectar o Claude (falta fazer)', nil, function(w, p)
+      w:perform_action(connect_claude_action, p)
+    end)
+  end
+  local upd = wezterm.GLOBAL.upfly_update
+  if upd and is_newer(upd.version, CURRENT_VERSION) then
+    add('update-now', '⬆ Atualizar para a versão ' .. upd.version, nil, function(w, p)
+      run_update(w, p)
+    end)
+  end
+  add('paste', 'Colar', MOD .. '+V', function(w, p) w:perform_action(act.PasteFrom 'Clipboard', p) end)
+  if not is_mac then
+    -- o Claude Code lê imagens da área de transferência com o Ctrl+V "puro"
+    add('paste-image', 'Colar imagem no Claude', 'Ctrl+Shift+V', function(w, p)
+      w:perform_action(act.SendKey { key = 'v', mods = 'CTRL' }, p)
+    end)
+  end
+  add('open', 'Abrir pasta de projeto', 'Ctrl+Shift+O', function(w, p) w:perform_action(open_folder_picker, p) end)
+  add('files', 'Mostrar ou esconder os arquivos (barra lateral)', 'Ctrl+Shift+E', function(w, p)
+    w:perform_action(toggle_explorer, p)
+  end)
+  add('claude-side', 'Abrir o Claude ao lado', 'Ctrl+Shift+A', function(w, p)
+    w:perform_action(spawn_claude('split'), p)
+  end)
+  add('claude-tab', 'Abrir o Claude numa aba nova', nil, function(w, p)
+    w:perform_action(spawn_claude('tab'), p)
+  end)
+  add('newtab', 'Nova aba', 'Ctrl+Shift+T', function(w, p) w:perform_action(act.SpawnTab 'CurrentPaneDomain', p) end)
+  add('newtab-with', 'Nova aba com… (Bash, PowerShell, Claude)', nil, function(w, p)
+    w:perform_action(new_tab_with, p)
+  end)
+  add('split-right', 'Dividir a tela: novo terminal à direita', nil, function(w, p)
+    w:perform_action(act.SplitHorizontal { domain = 'CurrentPaneDomain' }, p)
+  end)
+  add('split-down', 'Dividir a tela: novo terminal embaixo', nil, function(w, p)
+    w:perform_action(act.SplitVertical { domain = 'CurrentPaneDomain' }, p)
+  end)
+  add('zoom', 'Ampliar ou voltar o painel atual', nil, function(w, p) w:perform_action(act.TogglePaneZoomState, p) end)
+  add('close-pane', 'Fechar este painel', nil, function(w, p) confirm_close(w, p, 'pane') end)
+  add('close-tab', 'Fechar esta aba', 'Ctrl+Shift+W', function(w, p) confirm_close(w, p, 'tab') end)
+  add('search', 'Procurar texto no terminal', 'Ctrl+Shift+F', function(w, p)
+    w:perform_action(act.Search 'CurrentSelectionOrEmptyString', p)
+  end)
+  add('clear', 'Limpar a tela', 'Ctrl+Shift+K', function(w, p)
+    w:perform_action(act.ClearScrollback 'ScrollbackAndViewport', p)
+    w:perform_action(act.SendKey { key = 'l', mods = 'CTRL' }, p)
+  end)
+  add('font-up', 'Aumentar a letra', 'Ctrl+=', function(w, p) w:perform_action(act.IncreaseFontSize, p) end)
+  add('font-down', 'Diminuir a letra', 'Ctrl+-', function(w, p) w:perform_action(act.DecreaseFontSize, p) end)
+  add('font-reset', 'Tamanho normal da letra', 'Ctrl+0', function(w, p) w:perform_action(act.ResetFontSize, p) end)
+  add('fullscreen', 'Tela cheia', 'F11', function(w, p) w:perform_action(act.ToggleFullScreen, p) end)
+  add('background', 'Ligar ou desligar a imagem de fundo', nil, function(w, p)
+    w:perform_action(act.EmitEvent 'upfly-toggle-background', p)
+  end)
+  if not (cs == 'missing' or cs == 'logged_out') then
+    add('claude-account', 'Conta do Claude (verificar conexão)', nil, function(w, p)
+      w:perform_action(connect_claude_action, p)
+    end)
+  end
+  add('update', 'Procurar atualização do Upfly Code', nil, function(w, p) w:perform_action(update_action, p) end)
+  add('new-window', 'Nova janela', 'Ctrl+Shift+N', function(w, p) w:perform_action(act.SpawnWindow, p) end)
+  return items
+end
+
+local function pad(s, n)
+  local len = utf8 and utf8.len(s) or #s
+  if not len then len = #s end
+  if len >= n then return s .. '  ' end
+  return s .. string.rep(' ', n - len)
+end
+
+local show_menu = wezterm.action_callback(function(window, pane)
+  local items = menu_items(window, pane)
+  local by_id, choices = {}, {}
+  for _, it in ipairs(items) do
+    by_id[it.id] = it
+    local label = it.key and (pad(it.label, 52) .. it.key) or it.label
+    table.insert(choices, { id = it.id, label = label })
+  end
+  window:perform_action(act.InputSelector {
+    title = BRAND.terminal_name .. ': o que você quer fazer?',
+    fuzzy = true,
+    fuzzy_description = 'Digite para procurar  (↑ ↓ escolhe · Enter confirma · Esc fecha): ',
+    choices = choices,
+    action = wezterm.action_callback(function(w, p, id)
+      local it = id and by_id[id]
+      if it then it.run(w, p) end
+    end),
+  }, pane)
+end)
+
+-- -----------------------------------------------------------------------------
+-- Atalhos
+--   F1 ou Ctrl+Shift+P: menu com tudo, em português
+--   Ctrl+Shift+O abrir pasta · Ctrl+Shift+E arquivos · Ctrl+Shift+A Claude
+--   Ctrl+C copia (com texto selecionado) · Ctrl+V cola
+--   Atalhos antigos com Ctrl+Espaço continuam funcionando.
+-- -----------------------------------------------------------------------------
+config.leader = { key = 'Space', mods = 'CTRL', timeout_milliseconds = 1500 }
+
+config.keys = {
+  -- Menu
+  { key = 'F1', mods = 'NONE', action = show_menu },
+  { key = 'p', mods = 'CTRL|SHIFT', action = show_menu },
+  { key = 'P', mods = 'CTRL|SHIFT', action = show_menu },
+
+  -- Copiar e colar
+  { key = 'c', mods = 'CTRL', action = smart_copy },
+  { key = 'v', mods = 'CTRL', action = act.PasteFrom 'Clipboard' },
+  -- imagem no Claude Code: manda o Ctrl+V original para ele
+  { key = 'v', mods = 'CTRL|SHIFT', action = act.SendKey { key = 'v', mods = 'CTRL' } },
+  { key = 'V', mods = 'CTRL|SHIFT', action = act.SendKey { key = 'v', mods = 'CTRL' } },
+
+  -- Pastas, arquivos e Claude
+  { key = 'o', mods = 'CTRL|SHIFT', action = open_folder_picker },
+  { key = 'O', mods = 'CTRL|SHIFT', action = open_folder_picker },
+  { key = 'e', mods = 'CTRL|SHIFT', action = toggle_explorer },
+  { key = 'E', mods = 'CTRL|SHIFT', action = toggle_explorer },
+  { key = 'a', mods = 'CTRL|SHIFT', action = spawn_claude('split') },
+  { key = 'A', mods = 'CTRL|SHIFT', action = spawn_claude('split') },
+
+  -- Fechar com aviso em português
+  { key = 'w', mods = 'CTRL|SHIFT', action = close_tab },
+  { key = 'W', mods = 'CTRL|SHIFT', action = close_tab },
+  { key = 'k', mods = 'CTRL|SHIFT', action = act.Multiple {
+      act.ClearScrollback 'ScrollbackAndViewport', act.SendKey { key = 'l', mods = 'CTRL' } } },
+  { key = 'K', mods = 'CTRL|SHIFT', action = act.Multiple {
+      act.ClearScrollback 'ScrollbackAndViewport', act.SendKey { key = 'l', mods = 'CTRL' } } },
+  { key = 'F11', mods = 'NONE', action = act.ToggleFullScreen },
+
+  -- Telas do motor que só existem em inglês: desligadas
+  { key = 'l', mods = 'CTRL|SHIFT', action = act.DisableDefaultAssignment },
+  { key = 'L', mods = 'CTRL|SHIFT', action = act.DisableDefaultAssignment },
+  { key = 'u', mods = 'CTRL|SHIFT', action = act.DisableDefaultAssignment },
+  { key = 'U', mods = 'CTRL|SHIFT', action = act.DisableDefaultAssignment },
+  { key = 'x', mods = 'CTRL|SHIFT', action = act.DisableDefaultAssignment },
+  { key = 'X', mods = 'CTRL|SHIFT', action = act.DisableDefaultAssignment },
+
+  -- Atalhos com Ctrl+Espaço (para quem já se acostumou)
+  { key = 'c', mods = 'LEADER', action = spawn_claude('tab') },
+  { key = 'v', mods = 'LEADER', action = spawn_claude('split') },
+  { key = 'o', mods = 'LEADER', action = open_folder_picker },
+  { key = 'e', mods = 'LEADER', action = toggle_explorer },
+  { key = '\\', mods = 'LEADER', action = act.SplitHorizontal { domain = 'CurrentPaneDomain' } },
+  { key = '-',  mods = 'LEADER', action = act.SplitVertical { domain = 'CurrentPaneDomain' } },
+  { key = 'x',  mods = 'LEADER', action = close_pane },
+  { key = 'z',  mods = 'LEADER', action = act.TogglePaneZoomState },
+  { key = 'LeftArrow',  mods = 'LEADER', action = act.ActivatePaneDirection 'Left' },
+  { key = 'RightArrow', mods = 'LEADER', action = act.ActivatePaneDirection 'Right' },
+  { key = 'UpArrow',    mods = 'LEADER', action = act.ActivatePaneDirection 'Up' },
+  { key = 'DownArrow',  mods = 'LEADER', action = act.ActivatePaneDirection 'Down' },
+  { key = 't', mods = 'LEADER', action = act.SpawnTab 'CurrentPaneDomain' },
+  { key = 'l', mods = 'LEADER', action = new_tab_with },
+  { key = 'b', mods = 'LEADER', action = act.EmitEvent 'upfly-toggle-background' },
+  { key = 'u', mods = 'LEADER', action = update_action },
+  { key = 'k', mods = 'LEADER', action = connect_claude_action },
+  -- Envia CTRL+Espaço de verdade ao apertar duas vezes
+  { key = 'Space', mods = 'LEADER|CTRL', action = act.SendKey { key = 'Space', mods = 'CTRL' } },
+}
+
+if is_mac then
+  -- No Mac, Cmd+C/Cmd+V já copiam e colam; Ctrl+C volta a interromper.
+  config.keys[4] = { key = 'c', mods = 'CMD', action = act.CopyTo 'Clipboard' }
+  config.keys[5] = { key = 'v', mods = 'CMD', action = act.PasteFrom 'Clipboard' }
+end
+
+-- Botão direito do mouse abre o menu (na barra lateral, ela tem o seu próprio)
+config.mouse_bindings = {
+  { event = { Down = { streak = 1, button = 'Right' } }, mods = 'NONE', action = show_menu },
+  -- Ctrl+clique abre links
+  { event = { Up = { streak = 1, button = 'Left' } }, mods = 'CTRL', action = act.OpenLinkAtMouseCursor },
+}
 
 return config

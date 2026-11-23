@@ -49,7 +49,7 @@ O Upfly Code usa o **Git Bash** em todos os sistemas, para os comandos serem os
 mesmos no Windows, no Mac e no Linux. Se você já tem o Git for Windows, ele é
 reaproveitado. Se não tem, o instalador coloca uma versão portátil só para o Upfly Code.
 
-O PowerShell e o CMD continuam disponíveis em **Ctrl+Espaço, L**. Para voltar ao
+O PowerShell e o CMD continuam disponíveis no menu (**F1**) → **Nova aba com…**. Para voltar ao
 PowerShell como padrão, mude `shell = 'bash'` para `shell = 'system'` no arquivo
 `%LOCALAPPDATA%\UpflyCode\config\wezterm.lua`.
 

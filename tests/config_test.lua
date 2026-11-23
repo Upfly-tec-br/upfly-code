@@ -95,6 +95,7 @@ local function load_for(triple, label, opts)
   opts = opts or {}
   print(label .. ' (' .. triple .. ')')
   local win = triple:find('windows') ~= nil
+  local mac = triple:find('apple') ~= nil
   local base = win and (TMP .. '\\install') or (TMP .. '/install')
   local sep = win and '\\' or '/'
   local cfg_path = base .. sep .. 'config' .. sep .. 'wezterm.lua'
@@ -163,7 +164,7 @@ local function load_for(triple, label, opts)
 
   local ev = mock._events
   for _, name in ipairs({ 'format-window-title', 'format-tab-title', 'update-status', 'bell',
-                          'upfly-toggle-background', 'augment-command-palette', 'gui-startup' }) do
+                          'upfly-toggle-background', 'gui-startup' }) do
     check(type(ev[name]) == 'function', 'evento ' .. name)
   end
   check(ev['format-window-title']({ active_pane = { title = 'bash.exe' } }) == 'Upfly Code', 'título sem bash.exe')
@@ -252,8 +253,57 @@ local function load_for(triple, label, opts)
     check(#splits == n, 'iniciar na pasta pessoal não abre barra lateral')
   end
 
-  local palette = ev['augment-command-palette'](window, pane)
-  check(#palette == 7, 'paleta de comandos com 7 entradas Upfly')
+  -- Menu em português (F1, Ctrl+Shift+P, botão direito)
+  window.get_selection_text_for_pane = function() return '' end
+  check(find_key('F1', 'NONE') ~= nil and find_key('p', 'CTRL|SHIFT') ~= nil, 'F1 e Ctrl+Shift+P abrem o menu')
+  local rb = config.mouse_bindings and config.mouse_bindings[1]
+  check(rb and rb.event.Down.button == 'Right' and rb.action == find_key('F1', 'NONE').action,
+    'botão direito abre o menu')
+  find_key('F1', 'NONE').action.callback(window, pane)
+  local menu = last_action
+  check(menu.action == 'InputSelector' and menu.args.title:find('o que você quer fazer', 1, true),
+    'menu em português')
+  local ids, mlabels = {}, {}
+  for _, c in ipairs(menu.args.choices) do ids[c.id] = c; mlabels[#mlabels + 1] = c.label end
+  check(ids.open and ids.files and ids['claude-side'] and ids.paste and ids['close-tab'] and ids.update,
+    'menu tem abrir pasta, arquivos, Claude, colar, fechar e atualizar')
+  check(not table.concat(mlabels, ' '):lower():find('wezterm'), 'menu nunca fala em "wezterm"')
+  check(menu.args.fuzzy == true, 'menu aceita digitar para procurar')
+  menu.args.action.callback(window, pane, 'paste')
+  check(last_action.action == 'PasteFrom', 'menu: Colar')
+  window.get_selection_text_for_pane = function() return 'texto' end
+  find_key('F1', 'NONE').action.callback(window, pane)
+  check(last_action.args.choices[1].id == 'copy', 'com texto selecionado, "Copiar" vem primeiro')
+  -- Ctrl+C copia com seleção e interrompe sem seleção
+  local acts = {}
+  local cw = setmetatable({ perform_action = function(_, a) table.insert(acts, a) end }, { __index = window })
+  local ck = find_key(mac and 'c' or 'c', mac and 'CMD' or 'CTRL')
+  check(ck ~= nil, 'atalho de copiar')
+  if not mac then
+    ck.action.callback(cw, pane)
+    check(acts[1] and acts[1].action == 'CopyTo', 'Ctrl+C com seleção copia')
+    acts = {}
+    cw.get_selection_text_for_pane = function() return '' end
+    ck.action.callback(cw, pane)
+    check(acts[1] and acts[1].action == 'SendKey', 'Ctrl+C sem seleção interrompe o programa')
+  end
+  window.get_selection_text_for_pane = function() return '' end
+  -- Fechar aba: aviso em português só com programa rodando
+  check(config.window_close_confirmation == 'NeverPrompt', 'sem o aviso em inglês do motor')
+  find_key('w', 'CTRL|SHIFT').action.callback(window, pane)
+  check(last_action.action == 'CloseCurrentTab', 'Ctrl+Shift+W fecha direto quando só há o shell')
+  local busy = mock._new_pane('/x')
+  busy.get_foreground_process_name = function() return '/home/x/.local/bin/claude' end
+  find_key('w', 'CTRL|SHIFT').action.callback(window, busy)
+  check(last_action.action == 'InputSelector' and last_action.args.title == 'Fechar esta aba?'
+    and last_action.args.description:find('Claude Code', 1, true), 'com o Claude rodando, pergunta em português')
+  -- Telas do motor em inglês desligadas
+  check(find_key('l', 'CTRL|SHIFT') and find_key('l', 'CTRL|SHIFT').action.action == nil
+    and find_key('l', 'CTRL|SHIFT').action._name == 'DisableDefaultAssignment', 'tela de depuração (inglês) desligada')
+  -- Nova aba com...
+  find_key('l', 'LEADER').action.callback(window, pane)
+  check(last_action.action == 'InputSelector' and last_action.args.title == 'Abrir nova aba com…',
+    'lançador em português')
 
   -- Atualizações
   mock._timers = {}
