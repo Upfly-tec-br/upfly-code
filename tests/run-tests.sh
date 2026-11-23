@@ -124,6 +124,7 @@ else
     if(!fs.existsSync('$P/app/resources/app/out/media/upfly-background.jpg')) throw 'sem arquivo';
     const d=c.createHash('sha256').update(css).digest('base64').replace(/=+$/,'');
     if(prod.checksums[rel]!==d) throw 'checksum';"
+  check "sem marca d'água no editor vazio" bash -c "! grep -q base64 '$P/app/resources/app/out/media/letterpress-dark.svg'"
   check "ícone da barra de título trocado" grep -q 'data:image/png;base64' "$P/app/resources/app/out/media/code-icon.svg"
 
   sec "Instalação simulada (Linux)"

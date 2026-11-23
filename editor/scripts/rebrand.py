@@ -87,7 +87,8 @@ def replace_product_icons(app_dir, repo):
     """Ícone da barra de título e marca d'água do editor vazio (arquivos não
     verificados pelo checksum do VS Code)."""
     icon = svg_with_png(os.path.join(repo, "branding", "icon-256.png"))
-    mark = svg_with_png(os.path.join(repo, "branding", "icon-256.png"), opacity=0.12)
+    # Marca d'água do editor vazio: nenhuma (a imagem de fundo já faz esse papel).
+    mark = '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1" viewBox="0 0 1 1"/>\n'
     out = os.path.join(app_dir, "out")
     for dirpath, _, files in os.walk(out):
         for name in files:

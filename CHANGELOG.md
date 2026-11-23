@@ -1,5 +1,9 @@
 # Novidades do Upfly Code
 
+## 2.0.2
+
+- Sem o ícone no meio da tela quando nenhum arquivo está aberto: fica só a imagem de fundo.
+
 ## 2.0.1
 
 - **A imagem de fundo da Upfly voltou**, suave, sem atrapalhar a leitura.
