@@ -123,7 +123,9 @@ jobs:
 
   macos:
     needs: versao
-    runs-on: macos-latest
+    # Mac Intel: as máquinas Apple Silicon do GitHub vivem sem vaga. O pacote
+    # das duas arquiteturas é montado aqui do mesmo jeito.
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v5
       - name: Baixar VSCodium e português
@@ -140,7 +142,8 @@ jobs:
         run: |
           V="${{ needs.versao.outputs.version }}"
           T="$RUNNER_TEMP/pkg"; mkdir -p "$T"
-          ditto -x -k "dist/UpflyCode-$V-macos-arm64.zip" "$T"
+          A=arm64; [ "$(uname -m)" = x86_64 ] && A=x64
+          ditto -x -k "dist/UpflyCode-$V-macos-$A.zip" "$T"
           bash "$T/UpflyCode-$V/scripts/macos/install.sh" --no-launch --no-extensions
           test -d "$HOME/Applications/Upfly Code.app"
           codesign --verify --deep "$HOME/Applications/Upfly Code.app"
