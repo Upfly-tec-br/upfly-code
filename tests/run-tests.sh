@@ -34,7 +34,7 @@ check "languagepacks.js" node --check editor/scripts/languagepacks.js
 for j in editor/extension/package.json editor/extension/themes/*.json; do
   check "$j é JSON válido" node -e "JSON.parse(require('fs').readFileSync('$j','utf8'))"
 done
-check "rebrand.py / make-vsix.py" python3 -m py_compile editor/scripts/rebrand.py editor/scripts/make-vsix.py
+check "rebrand.py / make-vsix.py" python3 -c "import ast,sys; [ast.parse(open(f).read(),f) for f in sys.argv[1:]]" editor/scripts/rebrand.py editor/scripts/make-vsix.py
 for s in editor/linux/*.sh editor/macos/*.sh editor/scripts/*.sh editor/extension/bin/*.sh; do
   check "bash -n $s" bash -n "$s"
 done

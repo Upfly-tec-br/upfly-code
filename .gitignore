@@ -4,3 +4,5 @@ dist/
 vendor/
 installers/*/
 *.vsix
+__pycache__/
+*.pyc
