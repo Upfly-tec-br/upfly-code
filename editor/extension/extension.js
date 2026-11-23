@@ -295,7 +295,7 @@ async function renderHome() {
     <button class="card primary" data-cmd="openFolder"><span class="ic">📂</span><span class="t">Abrir uma pasta</span>
       <span class="d">Escolha a pasta do projeto. Os arquivos aparecem à esquerda.</span><span class="k">${MOD}+O</span></button>
     <button class="card" data-cmd="claude"><span class="ic">✨</span><span class="t">Conversar com o Claude ${claudeState}</span>
-      <span class="d">Peça o que precisa em português. Na primeira vez ele pede para entrar com sua conta Claude.</span><span class="k">${MOD}+Shift+A</span></button>
+      <span class="d">Peça o que precisa em português. Na primeira vez ele pede para entrar com sua conta Claude e pergunta, em inglês, se você confia na pasta: clique em <b>Trust folder</b> se ela for sua.</span><span class="k">${MOD}+Shift+A</span></button>
     <button class="card" data-cmd="terminal"><span class="ic">⌨️</span><span class="t">Abrir o terminal</span>
       <span class="d">Para quem quer digitar comandos. Fica embaixo da tela.</span><span class="k">Ctrl+'</span></button>
   </div>
@@ -543,7 +543,12 @@ async function activate(context) {
   statusUpdate.command = 'upfly.checkUpdate';
   context.subscriptions.push(claudeBtn, homeBtn, statusUpdate);
 
-  if (!hasFolder()) await showHome();
+  if (!hasFolder()) {
+    // Sem pasta aberta, o chat do Claude fica fechado: aberto na pasta pessoal
+    // ele pergunta (em inglês) se você confia nela, toda vez.
+    try { await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar'); } catch (_) {}
+    await showHome();
+  }
 
   // Primeiro uso: português e chat do Claude, sem a pessoa precisar procurar.
   ensurePortuguese().catch(() => {});

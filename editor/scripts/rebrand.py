@@ -11,6 +11,7 @@ renomeia o executável, troca os ícones e embute a extensão Upfly
 (editor/extension) como extensão interna.
 """
 import base64
+import hashlib
 import json
 import os
 import plistlib
@@ -97,6 +98,40 @@ def replace_product_icons(app_dir, repo):
                 open(p, "w").write(mark)
 
 
+BACKGROUND_CSS = """
+/* Upfly Code: imagem de fundo da Upfly, clareando por cima de tudo, sem
+   bloquear cliques. */
+.monaco-workbench::after {
+  content: ""; position: absolute; inset: 0; z-index: 2000; pointer-events: none;
+  background: url("../../media/upfly-background.jpg") center / cover no-repeat;
+  mix-blend-mode: screen; opacity: .22;
+}
+"""
+
+
+def add_background(app_dir, repo):
+    """Imagem de fundo (como no terminal antigo). O CSS do editor é conferido
+    por checksum: atualizamos o valor no product.json para não aparecer o
+    aviso de instalação corrompida."""
+    out = os.path.join(app_dir, "out")
+    shutil.copy(os.path.join(repo, "branding", "background-1080p.jpg"),
+                os.path.join(out, "media", "upfly-background.jpg"))
+    rel = "vs/workbench/workbench.desktop.main.css"
+    css = os.path.join(out, rel)
+    with open(css, "a", encoding="utf-8") as f:
+        f.write(BACKGROUND_CSS)
+    with open(css, "rb") as f:
+        digest = base64.b64encode(hashlib.sha256(f.read()).digest()).decode().rstrip("=")
+    pj = os.path.join(app_dir, "product.json")
+    with open(pj, encoding="utf-8") as f:
+        prod = json.load(f)
+    if rel in prod.get("checksums", {}):
+        prod["checksums"][rel] = digest
+    with open(pj, "w", encoding="utf-8") as f:
+        json.dump(prod, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+
 def embed_extension(app_dir, repo, version):
     src = os.path.join(repo, "editor", "extension")
     dst = os.path.join(app_dir, "extensions", "upfly")
@@ -128,6 +163,7 @@ def linux(root, repo, version):
     edit_product(app_dir, "linux")
     embed_extension(app_dir, repo, version)
     replace_product_icons(app_dir, repo)
+    add_background(app_dir, repo)
     os.rename(os.path.join(root, "codium"), os.path.join(root, "upfly-code"))
     old_bin = os.path.join(root, "bin", "codium")
     new_bin = os.path.join(root, "bin", "upfly-code")
@@ -152,6 +188,7 @@ def windows(root, repo, version):
     edit_product(app_dir, "windows")
     embed_extension(app_dir, repo, version)
     replace_product_icons(app_dir, repo)
+    add_background(app_dir, repo)
     os.rename(os.path.join(root, "VSCodium.exe"), os.path.join(root, "UpflyCode.exe"))
     old_cmd = os.path.join(root, "bin", "codium.cmd")
     new_cmd = os.path.join(root, "bin", "upfly-code.cmd")
@@ -182,6 +219,7 @@ def macos(root, repo, version):
     edit_product(app_dir, "macos")
     embed_extension(app_dir, repo, version)
     replace_product_icons(app_dir, repo)
+    add_background(app_dir, repo)
     shutil.copy(os.path.join(repo, "branding", "icon.icns"), os.path.join(res, "VSCodium.icns"))
     plist = os.path.join(new, "Contents", "Info.plist")
     with open(plist, "rb") as f:

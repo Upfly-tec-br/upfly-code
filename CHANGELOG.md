@@ -1,5 +1,13 @@
 # Novidades do Upfly Code
 
+## 2.0.1
+
+- **A imagem de fundo da Upfly voltou**, suave, sem atrapalhar a leitura.
+- O chat do Claude não abre mais sozinho na página inicial (sem pasta aberta).
+  Antes, ele perguntava em inglês, a cada janela, se você confiava na sua pasta
+  pessoal. Agora ele abre quando você abre uma pasta de projeto.
+- A página inicial explica a pergunta "Trust folder" do Claude.
+
 ## 2.0.0
 
 O Upfly Code agora é um **editor com o chat do Claude ao lado**, parecido com o Trae.

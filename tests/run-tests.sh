@@ -116,6 +116,14 @@ else
   check "extensão Upfly embutida com a versão $V" node -e "
     const p=require('$P/app/resources/app/extensions/upfly/package.json'); if(p.version!=='$V') throw p.version;"
   check "executável renomeado" test -x "$P/app/upfly-code" -a -x "$P/app/bin/upfly-code" -a ! -e "$P/app/codium"
+  check "imagem de fundo com checksum certo (sem aviso de instalação corrompida)" node -e "
+    const fs=require('fs'),c=require('crypto');
+    const prod=require('$PROD'); const rel='vs/workbench/workbench.desktop.main.css';
+    const css=fs.readFileSync('$P/app/resources/app/out/'+rel);
+    if(!css.toString().includes('upfly-background.jpg')) throw 'sem imagem';
+    if(!fs.existsSync('$P/app/resources/app/out/media/upfly-background.jpg')) throw 'sem arquivo';
+    const d=c.createHash('sha256').update(css).digest('base64').replace(/=+$/,'');
+    if(prod.checksums[rel]!==d) throw 'checksum';"
   check "ícone da barra de título trocado" grep -q 'data:image/png;base64' "$P/app/resources/app/out/media/code-icon.svg"
 
   sec "Instalação simulada (Linux)"
