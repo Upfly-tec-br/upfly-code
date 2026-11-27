@@ -48,13 +48,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: sudo apt-get update -q && sudo apt-get install -y -q shellcheck
-      - name: Baixar VSCodium e português
+      - name: Baixar VSCodium, português e ícones
         run: |
           bash editor/scripts/fetch-deps.sh linux-x64
           bash editor/scripts/fetch-deps.sh linux-arm64
       - name: Testes
         env:
           UPFLY_PTBR_VSIX: editor/.cache/pt-br.vsix
+          UPFLY_ICONS_VSIX: editor/.cache/material-icon-theme.vsix
         run: |
           export UPFLY_VSCODIUM_TARBALL="$(ls editor/.cache/VSCodium-linux-x64-*.tar.gz)"
           bash tests/run-tests.sh
@@ -62,8 +63,8 @@ jobs:
         run: |
           V="${{ needs.versao.outputs.version }}"
           mkdir -p dist
-          bash editor/scripts/build-linux.sh editor/.cache/VSCodium-linux-x64-*.tar.gz   "$V" dist editor/.cache/pt-br.vsix
-          bash editor/scripts/build-linux.sh editor/.cache/VSCodium-linux-arm64-*.tar.gz "$V" dist editor/.cache/pt-br.vsix
+          bash editor/scripts/build-linux.sh editor/.cache/VSCodium-linux-x64-*.tar.gz   "$V" dist editor/.cache/pt-br.vsix editor/.cache/material-icon-theme.vsix
+          bash editor/scripts/build-linux.sh editor/.cache/VSCodium-linux-arm64-*.tar.gz "$V" dist editor/.cache/pt-br.vsix editor/.cache/material-icon-theme.vsix
       - uses: actions/upload-artifact@v5
         with:
           name: UpflyCode-linux
@@ -89,7 +90,7 @@ jobs:
             else { Write-Host "ok  $($f.Name)" }
           }
           if ($bad) { exit 1 }
-      - name: Baixar VSCodium, português e rcedit
+      - name: Baixar VSCodium, português, ícones e rcedit
         run: |
           bash editor/scripts/fetch-deps.sh win32-x64
           curl -fL --retry 3 -o editor/.cache/rcedit-x64.exe https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe
@@ -97,7 +98,7 @@ jobs:
         run: |
           V="${{ needs.versao.outputs.version }}"
           mkdir -p dist
-          bash editor/scripts/build-windows.sh editor/.cache/VSCodium-win32-x64-*.zip "$V" "$PWD/dist" "$PWD/editor/.cache/rcedit-x64.exe" editor/.cache/pt-br.vsix
+          bash editor/scripts/build-windows.sh editor/.cache/VSCodium-win32-x64-*.zip "$V" "$PWD/dist" "$PWD/editor/.cache/rcedit-x64.exe" editor/.cache/pt-br.vsix editor/.cache/material-icon-theme.vsix
       - name: Instalação de teste
         shell: pwsh
         run: |
@@ -128,7 +129,7 @@ jobs:
     runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v5
-      - name: Baixar VSCodium e português
+      - name: Baixar VSCodium, português e ícones
         run: |
           bash editor/scripts/fetch-deps.sh darwin-arm64
           bash editor/scripts/fetch-deps.sh darwin-x64
@@ -136,8 +137,8 @@ jobs:
         run: |
           V="${{ needs.versao.outputs.version }}"
           mkdir -p dist
-          bash editor/scripts/build-macos.sh editor/.cache/VSCodium-darwin-arm64-*.zip "$V" "$PWD/dist" editor/.cache/pt-br.vsix
-          bash editor/scripts/build-macos.sh editor/.cache/VSCodium-darwin-x64-*.zip   "$V" "$PWD/dist" editor/.cache/pt-br.vsix
+          bash editor/scripts/build-macos.sh editor/.cache/VSCodium-darwin-arm64-*.zip "$V" "$PWD/dist" editor/.cache/pt-br.vsix editor/.cache/material-icon-theme.vsix
+          bash editor/scripts/build-macos.sh editor/.cache/VSCodium-darwin-x64-*.zip   "$V" "$PWD/dist" editor/.cache/pt-br.vsix editor/.cache/material-icon-theme.vsix
       - name: Instalação de teste
         run: |
           V="${{ needs.versao.outputs.version }}"

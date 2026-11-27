@@ -61,6 +61,10 @@ for (const k of ['ctrl+shift+a','ctrl+o']) if(!kb.includes(k)) throw 'falta atal
 const d=p.contributes.configurationDefaults;
 if(d['claudeCode.preferredLocation']!=='sidebar') throw 'Claude não fica à direita';
 if(d['workbench.colorTheme']!=='Upfly Escuro') throw 'tema';
+if(d['explorer.compactFolders']!==false) throw 'pastas compactas ligadas';
+if(d['workbench.iconTheme']!=='material-icon-theme') throw 'ícones dos arquivos';
+const cp=p.contributes.configuration.properties;
+if(cp['upfly.abrirUltimoProjeto'].default!==true||cp['upfly.retomarUltimaConversa'].default!==true) throw 'reabrir projeto/conversa';
 if(!p.capabilities.untrustedWorkspaces.supported) throw 'desliga em modo restrito';
 "
 cat > "$UNIT" <<'EOF'
@@ -86,9 +90,28 @@ assert(/"enable-crash-reporter": false,\s*\n\t"locale": "pt-br"/.test(t), t);
 _test.setLocaleInArgv('en');
 t = fs.readFileSync(argv, 'utf8');
 assert(t.includes('"locale": "en"') && !t.includes('pt-br'), t);
+// Última conversa do Claude no projeto
+assert.strictEqual(_test.projectSlug('/home/ana/meu projeto.v2'), '-home-ana-meu-projeto-v2');
+assert.strictEqual(_test.projectSlug('C:\\Users\\ana\\site'), 'C--Users-ana-site');
+const cfg = path.join(home, '.claude');
+const proj = path.join(cfg, 'projects', '-home-ana-site');
+fs.mkdirSync(proj, { recursive: true });
+const A = '11111111-1111-4111-8111-111111111111', B = '22222222-2222-4222-8222-222222222222', C = '33333333-3333-4333-8333-333333333333';
+fs.writeFileSync(path.join(proj, A + '.jsonl'), '{"type":"user","message":{"content":"oi"}}\n');
+fs.writeFileSync(path.join(proj, B + '.jsonl'), '{"type":"user","message":{"content":"mais nova"}}\n');
+fs.writeFileSync(path.join(proj, C + '.jsonl'), '{"type":"summary","summary":"sem mensagem"}\n');
+fs.writeFileSync(path.join(proj, 'agent-abc.jsonl'), '{"type":"user"}\n');
+const now = Date.now() / 1000;
+fs.utimesSync(path.join(proj, A + '.jsonl'), now - 3600, now - 3600);
+fs.utimesSync(path.join(proj, B + '.jsonl'), now - 60, now - 60);
+fs.utimesSync(path.join(proj, C + '.jsonl'), now, now);
+fs.utimesSync(path.join(proj, 'agent-abc.jsonl'), now, now);
+assert.strictEqual(_test.findLastSession('/home/ana/site', cfg).id, B);
+assert.strictEqual(_test.findLastSession('/HOME/ana/site', cfg).id, B);
+assert.strictEqual(_test.findLastSession('/home/ana/outro', cfg), null);
 console.log('ok');
 EOF
-check "comparação de versões e idioma no argv.json" node "$UNIT" "$REPO/editor/extension/extension.js"
+check "versões, idioma no argv.json e última conversa do Claude" node "$UNIT" "$REPO/editor/extension/extension.js"
 
 [ -n "${UPFLY_QUICK:-}" ] && { echo; [ "$FAILS" = 0 ] && printf '\033[32mTodos os testes passaram.\033[0m\n' || printf '\033[31m%s falha(s)\033[0m\n' "$FAILS"; exit "$FAILS"; }
 
@@ -100,12 +123,12 @@ else
   V="$(tr -d '[:space:]' < VERSION)"
   OUT="$(mktemp -d)"
   TARBALL="${UPFLY_VSCODIUM_TARBALL:-}"
-  PT="${UPFLY_PTBR_VSIX:-}"
+  PT="${UPFLY_PTBR_VSIX:-}"; ICONS="${UPFLY_ICONS_VSIX:-}"
   if [ -z "$TARBALL" ]; then
-    mapfile -t DEPS < <(bash editor/scripts/fetch-deps.sh linux-x64 | tail -2)
-    TARBALL="${DEPS[0]}"; PT="${DEPS[1]}"
+    mapfile -t DEPS < <(bash editor/scripts/fetch-deps.sh linux-x64 | tail -3)
+    TARBALL="${DEPS[0]}"; PT="${DEPS[1]}"; ICONS="${DEPS[2]}"
   fi
-  check "build-linux.sh" bash editor/scripts/build-linux.sh "$TARBALL" "$V" "$OUT" $PT
+  check "build-linux.sh" bash editor/scripts/build-linux.sh "$TARBALL" "$V" "$OUT" $PT $ICONS
   P="$OUT/UpflyCode-$V"
   PROD="$P/app/resources/app/product.json"
   check "product.json com a marca Upfly" node -e "
@@ -140,6 +163,9 @@ else
   if [ -n "$PT" ]; then
     check "português instalado sem internet" bash -c "ls -d '$H'/.upfly-code/extensions/ms-ceintl.vscode-language-pack-pt-br-*"
     check "índice de idiomas pronto antes de abrir" grep -q '"pt-br"' "$H/.config/Upfly Code/languagepacks.json"
+  fi
+  if [ -n "$ICONS" ]; then
+    check "ícones dos arquivos (Material Icon Theme) instalados sem internet" bash -c "ls -d '$H'/.upfly-code/extensions/pkief.material-icon-theme-*"
   fi
   check "CLI responde a versão" bash -c "'$H/.local/share/upfly-code/app/bin/upfly-code' --version | head -1 | grep -q '\\.'"
 

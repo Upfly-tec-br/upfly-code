@@ -1,5 +1,15 @@
 # Novidades do Upfly Code
 
+## 2.1.0
+
+- **Continua de onde você parou:** ao abrir o Upfly Code, ele já abre o último
+  projeto e a última conversa com o Claude nesse projeto, em vez de um chat vazio.
+  Dá para desligar em Configurações, procurando por "Upfly".
+- **Ícones nos arquivos:** o Material Icon Theme já vem instalado e ligado, com
+  um ícone para cada tipo de arquivo e pasta.
+- As pastas aparecem uma por linha na lista de arquivos (sem juntar
+  `src/app/components` numa linha só).
+
 ## 2.0.2
 
 - Sem o ícone no meio da tela quando nenhum arquivo está aberto: fica só a imagem de fundo.

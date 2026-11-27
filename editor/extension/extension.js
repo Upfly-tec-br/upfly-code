@@ -13,6 +13,10 @@ const path = require('path');
 
 const CLAUDE_EXT = 'anthropic.claude-code';
 const PTBR_EXT = 'MS-CEINTL.vscode-language-pack-pt-BR';
+const ICONS_EXT = 'PKief.material-icon-theme';
+// O próprio Claude devolve a conversa da barra lateral se ela teve mensagem
+// nos últimos 10 minutos. Antes disso, deixamos com ele (evita conversa duplicada).
+const CLAUDE_SELF_RESTORE_MS = 9 * 60 * 1000;
 const UPDATE_EVERY_MS = 60 * 60 * 1000; // 1 hora
 const isMac = process.platform === 'darwin';
 const MOD = isMac ? 'Cmd' : 'Ctrl';
@@ -78,6 +82,8 @@ function hasFolder() {
   return !!(vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length);
 }
 
+function setting(key, def) { return vscode.workspace.getConfiguration('upfly').get(key, def); }
+
 function nonce() {
   let s = '';
   const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -139,6 +145,141 @@ async function openClaude() {
 }
 
 // ---------------------------------------------------------------------------
+// Continuar a última conversa do Claude
+//
+// O Claude guarda cada conversa em <config>/projects/<pasta>/<id>.jsonl, onde
+// <pasta> é o caminho do projeto com tudo que não é letra ou número trocado
+// por "-". A mais recente é a última conversa. Para reabrir, usamos o link
+// oficial da extensão: <app>://anthropic.claude-code/open?session=<id>.
+// ---------------------------------------------------------------------------
+function claudeConfigDir() {
+  const vars = vscode.workspace.getConfiguration('claudeCode').get('environmentVariables');
+  const fromSetting = Array.isArray(vars)
+    && vars.find((v) => v && v.name === 'CLAUDE_CONFIG_DIR' && path.isAbsolute(String(v.value || '')));
+  if (fromSetting) return fromSetting.value;
+  if (process.env.CLAUDE_CONFIG_DIR && path.isAbsolute(process.env.CLAUDE_CONFIG_DIR)) return process.env.CLAUDE_CONFIG_DIR;
+  return path.join(os.homedir(), '.claude');
+}
+
+function projectSlug(folder) { return folder.replace(/[^a-zA-Z0-9]/g, '-'); }
+
+const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function hasUserMessage(file) {
+  let fd;
+  try {
+    fd = fs.openSync(file, 'r');
+    const buf = Buffer.alloc(256 * 1024);
+    const n = fs.readSync(fd, buf, 0, buf.length, 0);
+    return /"type"\s*:\s*"user"/.test(buf.toString('utf8', 0, n));
+  } catch (_) { return false; } finally { if (fd !== undefined) try { fs.closeSync(fd); } catch (_) {} }
+}
+
+// Devolve { id, mtimeMs } da conversa mais recente do projeto, ou null.
+function findLastSession(folder, configDir = claudeConfigDir()) {
+  const base = path.join(configDir, 'projects');
+  const slug = projectSlug(folder).toLowerCase();
+  let names = [];
+  try { names = fs.readdirSync(base); } catch (_) { return null; }
+  // Sem diferenciar maiúsculas (no Windows o "C:" pode vir como "c:"). Caminhos
+  // muito longos ganham um sufixo no nome da pasta.
+  const dirs = names.filter((n) => {
+    const l = n.toLowerCase();
+    return l === slug || (slug.length > 200 && l.startsWith(slug.slice(0, 200)));
+  });
+  const files = [];
+  for (const d of dirs) {
+    let entries = [];
+    try { entries = fs.readdirSync(path.join(base, d)); } catch (_) { continue; }
+    for (const e of entries) {
+      if (!e.endsWith('.jsonl') || !SESSION_ID.test(e.slice(0, -6))) continue;
+      const file = path.join(base, d, e);
+      try {
+        const st = fs.statSync(file);
+        if (st.isFile() && st.size > 0) files.push({ file, id: e.slice(0, -6), mtimeMs: st.mtimeMs });
+      } catch (_) { /* sumiu */ }
+    }
+  }
+  files.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  for (const f of files.slice(0, 20)) {
+    if (hasUserMessage(f.file)) return { id: f.id, mtimeMs: f.mtimeMs };
+  }
+  return null;
+}
+
+function claudeTabOpen() {
+  return vscode.window.tabGroups.all.some((g) => g.tabs.some((t) =>
+    t.input instanceof vscode.TabInputWebview && /claude/i.test(t.input.viewType)));
+}
+
+// Abre a última conversa do projeto. Devolve true se cuidou do chat.
+async function resumeLastConversation() {
+  if (!setting('retomarUltimaConversa', true) || !claudeInstalled() || !hasFolder()) return false;
+  const folder = vscode.workspace.workspaceFolders[0].uri;
+  if (folder.scheme !== 'file') return false;
+  const last = findLastSession(folder.fsPath);
+  if (!last) return false;
+  // Conversa recente: o Claude já a devolve sozinho na barra lateral.
+  if (Date.now() - last.mtimeMs < CLAUDE_SELF_RESTORE_MS) return false;
+
+  // Sem a pergunta "Permitir que uma extensão abra este URI?" toda vez.
+  const ext = vscode.workspace.getConfiguration('extensions');
+  const trusted = ext.get('confirmedUriHandlerExtensionIds') || [];
+  if (!trusted.some((id) => String(id).toLowerCase() === CLAUDE_EXT)) {
+    await ext.update('confirmedUriHandlerExtensionIds', [...trusted, CLAUDE_EXT], vscode.ConfigurationTarget.Global);
+  }
+
+  const uri = vscode.Uri.parse(`${vscode.env.uriScheme}://${CLAUDE_EXT}/open?session=${encodeURIComponent(last.id)}`);
+  const ok = await vscode.env.openExternal(uri);
+  if (!ok) return false;
+  // Se a conversa abriu numa aba, fecha a barra da direita para não ficar um
+  // segundo chat vazio ao lado.
+  for (let i = 0; i < 10; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    if (claudeTabOpen()) {
+      try { await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar'); } catch (_) {}
+      break;
+    }
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Abrir o último projeto quando o Upfly Code abre sem pasta
+// ---------------------------------------------------------------------------
+// Primeira janela desde que o app abriu? (Uma "Nova janela" continua vazia.)
+// Todas as janelas de uma mesma abertura têm o mesmo processo principal.
+async function isFirstWindowOfLaunch() {
+  const appPid = process.ppid;
+  const first = ctx.globalState.get('upfly.appPid') !== appPid;
+  await ctx.globalState.update('upfly.appPid', appPid);
+  return first;
+}
+
+async function openLastProject() {
+  if (!setting('abrirUltimoProjeto', true)) return false;
+  const [last] = await recentFolders();
+  if (!last || !fs.existsSync(last.fsPath)) return false;
+  try {
+    await vscode.commands.executeCommand('vscode.openFolder', last, { forceReuseWindow: true });
+    return true;
+  } catch (_) { return false; }
+}
+
+// ---------------------------------------------------------------------------
+// Ícones dos arquivos (Material Icon Theme)
+// ---------------------------------------------------------------------------
+async function ensureFileIcons() {
+  if (ctx.globalState.get('upfly.iconsReady')) return; // se a pessoa tirar, não insiste
+  if (!vscode.extensions.getExtension(ICONS_EXT)) {
+    try { await vscode.commands.executeCommand('workbench.extensions.installExtension', ICONS_EXT); } catch (_) {
+      return; // sem internet: tenta de novo na próxima abertura
+    }
+  }
+  await ctx.globalState.update('upfly.iconsReady', true);
+}
+
+// ---------------------------------------------------------------------------
 // Português
 // ---------------------------------------------------------------------------
 function argvPath() {
@@ -191,7 +332,11 @@ async function arrangeLayout() {
   if (!hasFolder()) return;
   try { await vscode.commands.executeCommand('workbench.view.explorer'); } catch (_) {}
   if (claudeInstalled()) {
-    try { await openClaude(); } catch (_) {}
+    let resumed = false;
+    try { resumed = await resumeLastConversation(); } catch (_) {}
+    if (!resumed) {
+      try { await openClaude(); } catch (_) {}
+    }
   }
   if (vscode.window.terminals.length === 0) {
     const t = vscode.window.createTerminal({ name: 'Terminal' });
@@ -543,6 +688,12 @@ async function activate(context) {
   statusUpdate.command = 'upfly.checkUpdate';
   context.subscriptions.push(claudeBtn, homeBtn, statusUpdate);
 
+  const firstWindow = await isFirstWindowOfLaunch();
+  if (!hasFolder() && firstWindow && await openLastProject()) {
+    // A janela recarrega já com o último projeto.
+    return;
+  }
+
   if (!hasFolder()) {
     // Sem pasta aberta, o chat do Claude fica fechado: aberto na pasta pessoal
     // ele pergunta (em inglês) se você confia nela, toda vez.
@@ -552,6 +703,7 @@ async function activate(context) {
 
   // Primeiro uso: português e chat do Claude, sem a pessoa precisar procurar.
   ensurePortuguese().catch(() => {});
+  ensureFileIcons().catch(() => {});
   arrangeLayout().catch(() => {});
   if (!claudeInstalled()) {
     ensureClaude().then((ok) => { if (ok && hasFolder()) openClaude(); }).catch(() => {});
@@ -563,4 +715,4 @@ async function activate(context) {
 
 function deactivate() {}
 
-module.exports = { activate, deactivate, _test: { isNewer, setLocaleInArgv } };
+module.exports = { activate, deactivate, _test: { isNewer, setLocaleInArgv, projectSlug, findLastSession } };

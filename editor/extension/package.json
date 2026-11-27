@@ -122,6 +122,21 @@
         }
       ]
     },
+    "configuration": {
+      "title": "Upfly Code",
+      "properties": {
+        "upfly.abrirUltimoProjeto": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ao abrir o Upfly Code sem nenhuma pasta, abrir sozinho o último projeto usado."
+        },
+        "upfly.retomarUltimaConversa": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ao abrir um projeto, continuar a última conversa com o Claude nesse projeto, em vez de começar uma vazia."
+        }
+      }
+    },
     "themes": [
       {
         "label": "Upfly Escuro",
@@ -149,6 +164,9 @@
       "editor.wordWrap": "on",
       "terminal.integrated.fontSize": 14,
       "explorer.confirmDragAndDrop": false,
+      "explorer.compactFolders": false,
+      "workbench.iconTheme": "material-icon-theme",
+      "window.restoreWindows": "all",
       "git.openRepositoryInParentFolders": "always",
       "claudeCode.preferredLocation": "sidebar",
       "window.title": "${rootName}${separator}Upfly Code",
